@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+model Employee {
+  id String @id
+  sourceSheet String
+  sourceRow Int
+  firstName String
+  lastName String
+  manager String
+  credentialSource String @default("Michigan MILARA")
+  credentialType String @default("Registered Nurse")
+  licenseNumber String?
+  credentialStatus String?
+  issueDate String?
+  expirationDate String?
+  county String?
+  verificationState String @default("UNVERIFIED")
+  lastVerifiedAt DateTime?
+  lastAttemptAt DateTime?
+  verificationError String?
+  sourceUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  audits VerificationAudit[]
+  @@unique([sourceSheet, sourceRow])
+  @@index([manager])
+}
+model VerificationAudit {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id])
+  source String
+  sourceUrl String
+  checkedAt DateTime @default(now())
+  state String
+  licenseNumber String?
+  status String?
+  expirationDate String?
+  normalizedJson String
+  error String?
+  screenshotPath String?
+}
+model ChatSession {
+  id String @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages ChatMessage[]
+}
+model ChatMessage {
+  id String @id @default(cuid())
+  sessionId String
+  session ChatSession @relation(fields: [sessionId], references: [id])
+  role String
+  content String
+  createdAt DateTime @default(now())
+}

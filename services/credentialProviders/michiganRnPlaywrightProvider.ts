@@ -1,0 +1,241 @@
+import { chromium, type Page } from "playwright";
+import { mkdir } from "node:fs/promises";
+import { candidateFromFields, classifyCandidates } from "./michiganParser";
+import {
+  MICHIGAN_URL,
+  type CredentialProvider,
+  type CredentialVerificationResult,
+} from "./types";
+export const cleanSourceText = (value: string) =>
+  value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const detailFields: Record<string, string> = {
+  "License Type": "lblLicenseeType_value",
+  "License Number": "lblLicenseeNumber_value",
+  Name: "lblContactName_value",
+  "License Issue Date": "lblLicenseIssueDate_value",
+  "License Expiration Date": "lblExpirationDate_value",
+  "License Status": "lblBusinessName2_value",
+  County: "lblInsuranceCompany_value",
+};
+async function fillName(
+  page: Page,
+  label: string,
+  fieldId: string,
+  value: string,
+) {
+  const accessible = page.getByLabel(label, { exact: true });
+  const field = (await accessible.count())
+    ? accessible
+    : page.locator(`#ctl00_PlaceHolderMain_refLicenseeSearchForm_${fieldId}`);
+  await field.scrollIntoViewIfNeeded();
+  await field.fill(value);
+}
+async function readDetail(page: Page) {
+  const fields: Record<string, string> = {};
+  for (const [key, id] of Object.entries(detailFields)) {
+    const el = page.locator(`#ctl00_PlaceHolderMain_licenseeGeneralInfo_${id}`);
+    fields[key] = (await el.count())
+      ? cleanSourceText(await el.innerText())
+      : "";
+  }
+  return fields;
+}
+export class MichiganRNPlaywrightProvider implements CredentialProvider {
+  async verify(employee: {
+    firstName: string;
+    lastName: string;
+    id?: string;
+  }): Promise<CredentialVerificationResult> {
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+    let page: Page | undefined;
+    try {
+      browser = await chromium.launch({
+        headless: process.env.PLAYWRIGHT_HEADLESS !== "false",
+      });
+      page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+      page.setDefaultTimeout(30_000);
+      console.log("[Playwright] Opening Michigan MILARA");
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const response = await page.goto(MICHIGAN_URL, {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        });
+        if (!response || response.status() < 500) break;
+        if (attempt === 1)
+          throw new Error(
+            `Michigan MILARA returned HTTP ${response.status()}.`,
+          );
+        console.log(
+          "[Playwright] State source temporarily unavailable; retrying once",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      console.log("[Playwright] Filling First Name:", employee.firstName);
+      await fillName(page, "First Name:", "txtFirstName", employee.firstName);
+      console.log("[Playwright] Filling Last Name:", employee.lastName);
+      await fillName(page, "Last Name:", "txtLastName", employee.lastName);
+      await Promise.all([
+        page.waitForLoadState("domcontentloaded"),
+        page.getByRole("link", { name: "Search", exact: true }).click(),
+      ]);
+      console.log("[Playwright] Search submitted");
+      await page.waitForFunction(
+        () => {
+          if (!document.body) return false;
+          const text = document.body.innerText.replace(
+            /[\u200B-\u200D\uFEFF]/g,
+            "",
+          );
+          return (
+            !!document.querySelector(
+              "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
+            ) ||
+            /no records|no results|no matching|results found matching|licensee list|licensee information|search results|bad gateway|service unavailable|error code 50[234]/i.test(
+              text,
+            ) ||
+            !!document.querySelector(
+              "#ctl00_PlaceHolderMain_refLicenseeList_gdvRefLicenseeList",
+            )
+          );
+        },
+        undefined,
+        { timeout: 30_000 },
+      );
+      const sourceBody = cleanSourceText(
+        await page.locator("body").innerText(),
+      );
+      if (
+        /bad gateway|service unavailable|error code 50[234]/i.test(sourceBody)
+      )
+        throw new Error("Michigan MILARA returned a temporary server error.");
+      if (
+        await page
+          .locator(
+            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
+          )
+          .count()
+      ) {
+        const fields = await readDetail(page);
+        console.log("[Playwright] Result found");
+        return classifyCandidates(
+          [candidateFromFields(fields, page.url())],
+          employee,
+          fields,
+        );
+      }
+      const body = cleanSourceText(await page.locator("body").innerText());
+      if (/no records|no results|no matching/i.test(body))
+        return classifyCandidates([], employee, { message: body.slice(-3000) });
+      const grid = page.locator(
+        "#ctl00_PlaceHolderMain_refLicenseeList_gdvRefLicenseeList",
+      );
+      if (!(await grid.count()))
+        throw new Error("The source returned an unrecognized result layout.");
+      const extracted = await grid.evaluate((table) => {
+        const rows = Array.from(table.querySelectorAll(":scope > tbody > tr"));
+        const header = rows.find((r) => r.querySelector("th"));
+        const keys = header
+          ? Array.from(header.querySelectorAll("th")).map((el) =>
+              (el.textContent || "").trim(),
+            )
+          : [];
+        return rows
+          .filter(
+            (r) =>
+              r.className.includes("ACA_TabRow_") && !r.querySelector("th"),
+          )
+          .map((row) => {
+            const values = Array.from(row.querySelectorAll(":scope > td")).map(
+              (el) => (el.textContent || "").trim(),
+            );
+            return Object.fromEntries(
+              keys.map((key, i) => [key, values[i] || ""]),
+            );
+          });
+      });
+      const candidates = extracted.map((raw) => {
+        const fields = Object.fromEntries(
+          Object.entries(raw).map(([k, v]) => [k, cleanSourceText(v)]),
+        );
+        fields.Name = [
+          fields["First Name"],
+          fields["Middle Initial"],
+          fields["Last Name"],
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return candidateFromFields(fields);
+      });
+      const showing = body.match(/Showing\s+(\d+)-(\d+)\s+of\s+(\d+)/i);
+      const complete = !!showing && Number(showing[2]) === Number(showing[3]);
+      const result = classifyCandidates(
+        candidates,
+        employee,
+        extracted,
+        complete,
+      );
+      if (result.state === "VERIFIED" && result.credential?.licenseNumber) {
+        const number = result.credential.licenseNumber;
+        await grid.getByRole("link", { name: number, exact: true }).click();
+        await page
+          .locator(
+            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
+          )
+          .waitFor();
+        const detail = await readDetail(page);
+        return classifyCandidates(
+          [candidateFromFields(detail, page.url())],
+          employee,
+          { searchRows: extracted, detail },
+        );
+      }
+      return result;
+    } catch (error) {
+      console.error(
+        "[Playwright] Verification failed",
+        error instanceof Error ? error.message : "Unknown failure",
+      );
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const identifier = (
+        employee.id || `${employee.firstName}-${employee.lastName}`
+      ).replace(/[^a-z0-9_-]/gi, "-");
+      let screenshotPath: string | undefined;
+      if (page) {
+        try {
+          await mkdir("debug", { recursive: true });
+          screenshotPath = `debug/${identifier}-${stamp}.png`;
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+        } catch {
+          screenshotPath = undefined;
+        }
+      }
+      return {
+        state: "ERROR",
+        source: "Michigan MILARA",
+        sourceUrl: MICHIGAN_URL,
+        checkedAt: new Date().toISOString(),
+        credential: null,
+        candidates: [],
+        rawFields: {
+          failure:
+            error instanceof Error ? error.message : "Unknown browser failure",
+        },
+        error:
+          "Michigan MILARA could not be checked. The site may be unavailable or its layout may have changed. Please retry or review the source manually.",
+        screenshotPath,
+      };
+    } finally {
+      await browser?.close();
+    }
+  }
+}
+export async function verifyMichiganRN(employee: {
+  firstName: string;
+  lastName: string;
+}) {
+  return new MichiganRNPlaywrightProvider().verify(employee);
+}

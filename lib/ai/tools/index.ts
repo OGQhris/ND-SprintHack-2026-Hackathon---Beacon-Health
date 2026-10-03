@@ -1,0 +1,278 @@
+import { z } from "zod";
+import type { FunctionTool } from "openai/resources/responses/responses";
+import {
+  listEmployees,
+  matchEmployeeName,
+  searchEmployeesIn,
+  needsAttention,
+  summarize,
+} from "@/lib/employees";
+import {
+  verifyEmployee,
+  startVerifyAll,
+  getBatchProgress,
+} from "@/services/credentialService";
+export type ToolContext = { latestUserMessage: string };
+type RegisteredTool = {
+  definition: FunctionTool;
+  label: string;
+  run: (args: unknown, context: ToolContext) => Promise<unknown>;
+};
+function define<T extends z.ZodType>(
+  name: string,
+  description: string,
+  label: string,
+  schema: T,
+  execute: (args: z.infer<T>, context: ToolContext) => Promise<unknown>,
+): RegisteredTool {
+  const json = z.toJSONSchema(schema);
+  delete json.$schema;
+  return {
+    definition: {
+      type: "function",
+      name,
+      description,
+      strict: true,
+      parameters: json,
+    },
+    label,
+    run: async (args, context) => {
+      const parsed = schema.safeParse(args);
+      if (!parsed.success)
+        return {
+          ok: false,
+          error: {
+            code: "INVALID_ARGUMENTS",
+            message: "Tool arguments did not pass validation.",
+            issues: parsed.error.issues.map((i) => ({
+              path: i.path,
+              message: i.message,
+            })),
+          },
+        };
+      return execute(parsed.data, context);
+    },
+  };
+}
+const text = z.string().trim().min(1).max(160);
+const empty = z.strictObject({});
+export function explicitlyRequestsVerification(message: string) {
+  return (
+    /\b(?:verify|reverify|re-verify|recheck)\b/i.test(message) ||
+    /\bcheck\b.{0,80}\b(?:license|credential)\b/i.test(message)
+  );
+}
+export function explicitlyRequestsBulkVerification(message: string) {
+  return (
+    explicitlyRequestsVerification(message) &&
+    /\b(?:all|everybody|everyone|every\s+(?:employee|credential|license)|entire\s+(?:roster|team))\b/i.test(
+      message,
+    ) &&
+    !/\b(?:don't|do not|not|never)\b/i.test(message)
+  );
+}
+const registry: RegisteredTool[] = [
+  define(
+    "get_employee_by_name",
+    "Find an employee by first and last name. Returns candidates for ambiguous names; never silently selects among candidates.",
+    "Looking up employee details",
+    z.strictObject({ firstName: text, lastName: text }),
+    async (a) =>
+      matchEmployeeName(await listEmployees(), a.firstName, a.lastName),
+  ),
+  define(
+    "search_employees",
+    "Search first, last, or full employee names. Partial matches are returned for clarification.",
+    "Searching employee records",
+    z.strictObject({ query: text }),
+    async (a) => ({
+      employees: searchEmployeesIn(await listEmployees(), a.query),
+    }),
+  ),
+  define(
+    "get_credentials_expiring_within_days",
+    "Find expiration dates from today through N days inclusive. Excludes already expired licenses; reports stored verification state.",
+    "Checking upcoming expirations",
+    z.strictObject({ days: z.number().int().min(0).max(3650) }),
+    async (a) => {
+      const employees = await listEmployees();
+      return {
+        days: a.days,
+        coverage: {
+          totalEmployees: employees.length,
+          unknownExpiration: employees.filter(
+            (e) => e.daysUntilExpiration === null,
+          ).length,
+          unverified: employees.filter(
+            (e) => e.verificationState === "UNVERIFIED",
+          ).length,
+        },
+        employees: employees.filter(
+          (e) =>
+            e.daysUntilExpiration !== null &&
+            e.daysUntilExpiration >= 0 &&
+            e.daysUntilExpiration <= a.days,
+        ),
+      };
+    },
+  ),
+  define(
+    "get_expired_credentials",
+    "Retrieve employees whose recorded license expiration date is before today.",
+    "Checking expired credentials",
+    empty,
+    async () => ({
+      employees: (await listEmployees()).filter(
+        (e) => e.expirationCategory === "EXPIRED",
+      ),
+    }),
+  ),
+  define(
+    "get_employees_by_manager",
+    "Retrieve employees assigned to a manager. Match exact manager name first; ambiguous partial names require clarification.",
+    "Reviewing manager assignments",
+    z.strictObject({ managerName: text }),
+    async (a) => {
+      const employees = await listEmployees();
+      const managers = [...new Set(employees.map((e) => e.manager))];
+      const exact = managers.filter(
+        (m) => m.toLowerCase() === a.managerName.toLowerCase(),
+      );
+      const matches = exact.length
+        ? exact
+        : managers.filter((m) =>
+            m.toLowerCase().includes(a.managerName.toLowerCase()),
+          );
+      return matches.length === 1
+        ? {
+            manager: matches[0],
+            employees: employees.filter((e) => e.manager === matches[0]),
+          }
+        : {
+            clarificationRequired: matches.length > 1,
+            candidates: matches,
+            employees: [],
+            message: matches.length
+              ? "Please clarify the manager."
+              : "Manager not found. Workbook spellings are preserved.",
+          };
+    },
+  ),
+  define(
+    "get_unverified_employees",
+    "Get employees in the UNVERIFIED state, who have not yet had a credential check.",
+    "Finding unverified employees",
+    empty,
+    async () => ({
+      employees: (await listEmployees()).filter(
+        (e) => e.verificationState === "UNVERIFIED",
+      ),
+    }),
+  ),
+  define(
+    "get_attention_needed",
+    "Get expired or expiring within 30 days, review, not found, errors, and non-active source statuses. Includes attention reasons.",
+    "Reviewing credentials needing attention",
+    empty,
+    async () => {
+      const all = await listEmployees();
+      const employees = all.filter(needsAttention);
+      return {
+        count: employees.length,
+        coverage: {
+          totalEmployees: all.length,
+          unverified: all.filter((e) => e.verificationState === "UNVERIFIED")
+            .length,
+          unknownExpiration: all.filter((e) => e.daysUntilExpiration === null)
+            .length,
+        },
+        employees,
+      };
+    },
+  ),
+  define(
+    "get_credential_summary",
+    "Return aggregate credential counts. Expiring windows are cumulative (7 is included in 14 and 30); source Active is independent of expiration category.",
+    "Summarizing credential records",
+    empty,
+    async () => ({
+      summary: summarize(await listEmployees()),
+      verificationProgress: getBatchProgress(),
+    }),
+  ),
+  define(
+    "verify_employee_credential",
+    "Perform one deterministic Michigan RN lookup and persist its result and audit record. Only use when the latest user explicitly requests verification. First identify a unique employee using lookup tools.",
+    "Verifying credential with Michigan MILARA",
+    z.strictObject({ employeeId: text }),
+    async (a, c) => {
+      if (
+        !explicitlyRequestsVerification(c.latestUserMessage) ||
+        /\b(?:don't|do not|never)\b/i.test(c.latestUserMessage)
+      )
+        return {
+          ok: false,
+          error: {
+            code: "ACTION_NOT_REQUESTED",
+            message:
+              "Verification requires an explicit request in the latest message.",
+          },
+        };
+      const employee = await verifyEmployee(a.employeeId);
+      return { ok: employee.verificationState === "VERIFIED", employee };
+    },
+  ),
+  define(
+    "verify_all_credentials",
+    "Start sequential verification for the entire fourth-worksheet roster. Only use after explicit latest-user request to verify all/everybody. Returns STARTED and progress, not final results.",
+    "Starting sequential roster verification",
+    empty,
+    async (_, c) => {
+      if (!explicitlyRequestsBulkVerification(c.latestUserMessage))
+        return {
+          ok: false,
+          error: {
+            code: "BULK_NOT_REQUESTED",
+            message:
+              "Bulk verification requires an explicit request to verify all credentials.",
+          },
+        };
+      return { ok: true, action: "STARTED", progress: await startVerifyAll() };
+    },
+  ),
+];
+export const toolDefinitions = registry.map((t) => t.definition);
+export const toolLabel = (name: string) =>
+  registry.find((t) => t.definition.name === name)?.label ||
+  "Reviewing credential records";
+export async function executeTool(
+  name: string,
+  argumentsJson: string,
+  context: ToolContext,
+) {
+  console.log("[AI] Calling tool:", name);
+  const tool = registry.find((t) => t.definition.name === name);
+  if (!tool)
+    return {
+      ok: false,
+      error: { code: "UNKNOWN_TOOL", message: "Tool is not approved." },
+    };
+  try {
+    const args: unknown = JSON.parse(argumentsJson);
+    const result = await tool.run(args, context);
+    console.log("[AI Tool]", name, "completed");
+    return result;
+  } catch (error) {
+    console.error("[AI Tool]", name, error);
+    return {
+      ok: false,
+      error: {
+        code: "TOOL_FAILED",
+        message:
+          error instanceof SyntaxError
+            ? "Tool arguments were not valid JSON."
+            : "The credential tool could not complete. Please try again or use the dashboard.",
+      },
+    };
+  }
+}
