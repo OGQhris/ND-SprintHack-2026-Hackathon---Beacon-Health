@@ -1,3 +1,4 @@
+import type { VerificationRecorder } from "../verificationRecorder";
 export const MICHIGAN_URL =
   "https://aca-prod.accela.com/MILARA/GeneralProperty/PropertyLookUp.aspx?isLicensee=Y&TabName=APO";
 export type LicenseCandidate = {
@@ -20,11 +21,15 @@ export type CredentialVerificationResult = {
   rawFields: unknown;
   error: string | null;
   screenshotPath?: string;
+  recordingId?: string;
 };
 export interface CredentialProvider {
-  verify(employee: {
-    firstName: string;
-    lastName: string;
-    id?: string;
-  }): Promise<CredentialVerificationResult>;
+  verify(
+    employee: {
+      firstName: string;
+      lastName: string;
+      id?: string;
+    },
+    recorder?: VerificationRecorder,
+  ): Promise<CredentialVerificationResult>;
 }

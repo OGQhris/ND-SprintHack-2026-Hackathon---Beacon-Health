@@ -56,7 +56,7 @@ try {
   const ask = async (message) => {
     count++;
     await page
-      .getByRole("textbox", { name: "Message Beacon assistant" })
+      .getByRole("textbox", { name: "Message credential assistant" })
       .fill(message);
     await page.getByRole("button", { name: "Send message" }).click();
     await page.waitForFunction(

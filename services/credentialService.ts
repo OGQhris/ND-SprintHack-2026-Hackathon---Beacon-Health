@@ -1,3 +1,4 @@
+import { VerificationRecorder } from "./verificationRecorder";
 import { db } from "@/lib/db";
 import { serializeEmployee } from "@/lib/employees";
 import type { BatchProgress } from "@/lib/types";
@@ -97,6 +98,7 @@ export async function persistVerification(
 async function performVerification(
   employeeId: string,
   provider: CredentialProvider,
+  origin: "single" | "batch" = "single",
 ) {
   const employee = await db.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found.");
@@ -109,9 +111,10 @@ async function performVerification(
     where: { id: employeeId },
     data: { verificationState: "VERIFYING", verificationError: null },
   });
+  const recorder = new VerificationRecorder(employee, origin);
   let result: CredentialVerificationResult;
   try {
-    result = await provider.verify(employee);
+    result = await provider.verify(employee, recorder);
   } catch (error) {
     console.error("[Credential Verification] Provider failed", error);
     result = {
@@ -126,19 +129,21 @@ async function performVerification(
         "The verification provider could not complete the check. Please retry.",
     };
   }
-  const updated = await persistVerification(employeeId, result);
-  console.log(
-    "[Credential Verification]",
-    employee.firstName,
-    employee.lastName,
-    "->",
-    updated.verificationState,
-    "->",
-    updated.credentialStatus,
-    "->",
-    updated.expirationDate,
-  );
-  return updated;
+  result.recordingId = recorder.run.id;
+  try {
+    const updated = await persistVerification(employeeId, result);
+    await recorder.finish(result).catch(() => {});
+    return updated;
+  } catch (error) {
+    await recorder
+      .finish({
+        ...result,
+        state: "ERROR",
+        error: "The verification could not be saved. Please retry.",
+      })
+      .catch(() => {});
+    throw error;
+  }
 }
 export async function verifyEmployee(
   employeeId: string,
@@ -181,7 +186,11 @@ export async function startVerifyAll(
       for (const employee of employees) {
         state.batch.currentEmployee = `${employee.firstName} ${employee.lastName}`;
         try {
-          const result = await performVerification(employee.id, provider);
+          const result = await performVerification(
+            employee.id,
+            provider,
+            "batch",
+          );
           if (result.verificationState === "VERIFIED") state.batch.verified++;
           else state.batch.failed++;
         } catch (error) {

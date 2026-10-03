@@ -1,3 +1,4 @@
+import type { VerificationRecorder } from "../services/verificationRecorder";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -36,8 +37,7 @@ sqlite.close();
 const { db } = await import("../lib/db");
 const { listEmployees, matchEmployeeName, summarize } =
   await import("../lib/employees");
-const { executeTool, toolDefinitions, explicitlyRequestsBulkVerification } =
-  await import("../lib/ai/tools");
+const { executeTool, toolDefinitions } = await import("../lib/ai/tools");
 const { runResponseLoop } = await import("../lib/ai/responseLoop");
 const { readFourthWorksheet, importEmployees } =
   await import("../services/excelImport");
@@ -219,7 +219,7 @@ test("expiration, manager, summary, attention, unverified and expired database t
   );
   assert.equal(summarize(await listEmployees()).expiringWithin7Days, 0);
 });
-test("strict JSON schemas, Zod validation, unknown tool rejection and mutation authorization", async () => {
+test("strict JSON schemas, Zod validation and unknown tool rejection", async () => {
   assert.equal(toolDefinitions.length, 10);
   for (const tool of toolDefinitions) {
     assert.equal(tool.strict, true);
@@ -251,29 +251,6 @@ test("strict JSON schemas, Zod validation, unknown tool rejection and mutation a
         latestUserMessage: "x",
       })) as { ok: boolean }
     ).ok,
-    false,
-  );
-  assert.equal(
-    (
-      (await call("verify_all_credentials", {}, "Who needs attention?")) as {
-        ok: boolean;
-      }
-    ).ok,
-    false,
-  );
-  assert.equal(
-    (
-      (await call(
-        "verify_employee_credential",
-        { employeeId: "a" },
-        "When does she expire?",
-      )) as { ok: boolean }
-    ).ok,
-    false,
-  );
-  assert.equal(explicitlyRequestsBulkVerification("Verify everybody."), true);
-  assert.equal(
-    explicitlyRequestsBulkVerification("Do not verify all credentials"),
     false,
   );
 });
@@ -540,7 +517,11 @@ test("verify-all is sequential, deduplicates running batches, and publishes trut
     peak = 0;
   const calls: string[] = [];
   const provider = {
-    verify: async (employee: { firstName: string; lastName: string }) => {
+    verify: async (
+      employee: { firstName: string; lastName: string },
+      recorder?: VerificationRecorder,
+    ) => {
+      assert.equal(recorder?.run.origin, "batch");
       running++;
       peak = Math.max(peak, running);
       calls.push(employee.firstName);
@@ -560,6 +541,15 @@ test("verify-all is sequential, deduplicates running batches, and publishes trut
   };
   const first = await startVerifyAll(provider);
   const duplicate = await startVerifyAll(provider);
+  const requested = (await call(
+    "verify_all_credentials",
+    {},
+    "can you start verification for everyone please",
+  )) as { ok: boolean; action: string; progress: { startedAt: string } };
+  assert.equal(requested.ok, true);
+  assert.equal(requested.action, "STARTED");
+  assert.equal(requested.progress.startedAt, first.startedAt);
+
   assert.equal(first.running, true);
   assert.equal(duplicate.startedAt, first.startedAt);
   for (let i = 0; getBatchProgress().running && i < 100; i++)

@@ -255,7 +255,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
               <Sparkles size={29} />
               <span />
             </div>
-            <div className="eyebrow">BEACON CREDENTIAL ASSISTANT</div>
+            <div className="eyebrow">BEACON HEALTH SYSTEM</div>
             <h1>
               Your team.
               <br />
@@ -300,7 +300,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
                 )}
                 <div className="message-body">
                   {m.role === "assistant" && (
-                    <div className="message-author">Beacon assistant</div>
+                    <div className="message-author">Credential assistant</div>
                   )}
                   {m.activities?.length ? (
                     <div className="tool-activities">
@@ -397,13 +397,13 @@ export function Chat({ compact = false }: { compact?: boolean }) {
               }
             }}
             placeholder="Ask about your team’s credentials…"
-            aria-label="Message Beacon assistant"
+            aria-label="Message credential assistant"
             rows={1}
             disabled={loading}
           />
           <div className="composer-footer">
             <span>
-              <Sparkles size={13} /> Beacon Credential Assistant
+              <Sparkles size={13} /> Beacon Health System Credential Assistant
             </span>
             {busy ? (
               <button

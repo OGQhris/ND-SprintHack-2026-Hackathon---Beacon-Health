@@ -221,7 +221,7 @@ try {
     0,
   );
   await page
-    .getByRole("textbox", { name: "Message Beacon assistant" })
+    .getByRole("textbox", { name: "Message credential assistant" })
     .fill("Tell me about Kathryn Cell.");
   await page.getByRole("button", { name: "Send message" }).click();
   await page
@@ -235,7 +235,7 @@ try {
     animations: "disabled",
   });
   await page
-    .getByRole("textbox", { name: "Message Beacon assistant" })
+    .getByRole("textbox", { name: "Message credential assistant" })
     .fill("When does she expire?");
   await page.getByRole("button", { name: "Send message" }).click();
   await page.waitForFunction(

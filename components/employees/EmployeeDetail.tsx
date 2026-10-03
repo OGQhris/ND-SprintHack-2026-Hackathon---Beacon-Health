@@ -1,4 +1,5 @@
 "use client";
+import { replayVerification } from "@/components/verification/VerificationViewer";
 import { useEffect, useState } from "react";
 import {
   ExternalLink,
@@ -28,7 +29,7 @@ type Audit = {
   status: string | null;
   expirationDate: string | null;
   error: string | null;
-  normalized: unknown;
+  normalized: { recordingId?: string };
 };
 export function EmployeeDetail({
   employee,
@@ -103,7 +104,10 @@ export function EmployeeDetail({
               </span>
               <Button
                 size="sm"
-                onClick={() => onVerify(employee.id)}
+                onClick={() => {
+                  onClose();
+                  onVerify(employee.id);
+                }}
                 disabled={busy}
               >
                 {busy ? (
@@ -202,6 +206,18 @@ export function EmployeeDetail({
                       {formatDate(a.expirationDate)}
                     </p>
                     {a.error && <p>{a.error}</p>}
+                    {a.normalized.recordingId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          onClose();
+                          replayVerification(a.normalized.recordingId!);
+                        }}
+                      >
+                        Replay this verification
+                      </Button>
+                    )}
                     <pre>{JSON.stringify(a.normalized, null, 2)}</pre>
                   </div>
                 </details>

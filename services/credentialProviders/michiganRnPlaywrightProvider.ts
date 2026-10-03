@@ -1,3 +1,4 @@
+import type { VerificationRecorder } from "../verificationRecorder";
 import { chromium, type Page } from "playwright";
 import { mkdir } from "node:fs/promises";
 import { candidateFromFields, classifyCandidates } from "./michiganParser";
@@ -26,13 +27,26 @@ async function fillName(
   label: string,
   fieldId: string,
   value: string,
+  recorder?: VerificationRecorder,
 ) {
   const accessible = page.getByLabel(label, { exact: true });
   const field = (await accessible.count())
     ? accessible
     : page.locator(`#ctl00_PlaceHolderMain_refLicenseeSearchForm_${fieldId}`);
   await field.scrollIntoViewIfNeeded();
+  await recorder?.capture(
+    page,
+    `Entering ${label.replace(":", "").toLowerCase()}: ${value}`,
+    "type",
+    field,
+  );
   await field.fill(value);
+  await recorder?.capture(
+    page,
+    `${label.replace(":", "")} entered`,
+    "read",
+    field,
+  );
 }
 async function readDetail(page: Page) {
   const fields: Record<string, string> = {};
@@ -45,11 +59,14 @@ async function readDetail(page: Page) {
   return fields;
 }
 export class MichiganRNPlaywrightProvider implements CredentialProvider {
-  async verify(employee: {
-    firstName: string;
-    lastName: string;
-    id?: string;
-  }): Promise<CredentialVerificationResult> {
+  async verify(
+    employee: {
+      firstName: string;
+      lastName: string;
+      id?: string;
+    },
+    recorder?: VerificationRecorder,
+  ): Promise<CredentialVerificationResult> {
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     let page: Page | undefined;
     try {
@@ -74,10 +91,33 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
         );
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
+      await recorder?.capture(
+        page,
+        "Opened Michigan MILARA licensing search",
+        "navigate",
+      );
       console.log("[Playwright] Filling First Name:", employee.firstName);
-      await fillName(page, "First Name:", "txtFirstName", employee.firstName);
+      await fillName(
+        page,
+        "First Name:",
+        "txtFirstName",
+        employee.firstName,
+        recorder,
+      );
       console.log("[Playwright] Filling Last Name:", employee.lastName);
-      await fillName(page, "Last Name:", "txtLastName", employee.lastName);
+      await fillName(
+        page,
+        "Last Name:",
+        "txtLastName",
+        employee.lastName,
+        recorder,
+      );
+      await recorder?.capture(
+        page,
+        "Clicking Search",
+        "click",
+        page.getByRole("link", { name: "Search", exact: true }),
+      );
       await Promise.all([
         page.waitForLoadState("domcontentloaded"),
         page.getByRole("link", { name: "Search", exact: true }).click(),
@@ -105,6 +145,7 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
         undefined,
         { timeout: 30_000 },
       );
+      await recorder?.capture(page, "Reading state licensing results", "read");
       const sourceBody = cleanSourceText(
         await page.locator("body").innerText(),
       );
@@ -119,6 +160,14 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
           )
           .count()
       ) {
+        await recorder?.capture(
+          page,
+          "Reading license details",
+          "read",
+          page.locator(
+            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+          ),
+        );
         const fields = await readDetail(page);
         console.log("[Playwright] Result found");
         return classifyCandidates(
@@ -180,12 +229,26 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
       );
       if (result.state === "VERIFIED" && result.credential?.licenseNumber) {
         const number = result.credential.licenseNumber;
+        await recorder?.capture(
+          page,
+          `Opening license ${number}`,
+          "click",
+          grid.getByRole("link", { name: number, exact: true }),
+        );
         await grid.getByRole("link", { name: number, exact: true }).click();
         await page
           .locator(
             "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
           )
           .waitFor();
+        await recorder?.capture(
+          page,
+          "Reading license details",
+          "read",
+          page.locator(
+            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+          ),
+        );
         const detail = await readDetail(page);
         return classifyCandidates(
           [candidateFromFields(detail, page.url())],
@@ -205,6 +268,7 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
       ).replace(/[^a-z0-9_-]/gi, "-");
       let screenshotPath: string | undefined;
       if (page) {
+        await recorder?.capture(page, "Source check interrupted", "result");
         try {
           await mkdir("debug", { recursive: true });
           screenshotPath = `debug/${identifier}-${stamp}.png`;

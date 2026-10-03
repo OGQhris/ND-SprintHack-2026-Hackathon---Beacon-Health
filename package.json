@@ -20,7 +20,8 @@
     "test:integration": "node tests/httpIntegration.mjs",
     "format": "prettier --write app components lib services scripts tests prisma.config.ts next.config.ts eslint.config.mjs postcss.config.mjs package.json tsconfig.json README.md",
     "test:live-ui": "node scripts/testLiveUi.mjs",
-    "test:provider": "node --import tsx scripts/testProvider.mjs"
+    "test:provider": "node --import tsx scripts/testProvider.mjs",
+    "test:viewer": "node scripts/testVerificationViewer.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

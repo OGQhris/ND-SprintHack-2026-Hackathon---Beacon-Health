@@ -32,7 +32,7 @@ try {
   await page.getByRole("textbox", { name: "Search employees" }).fill("Kathryn");
   console.log("FILTERED_ROWS", await page.locator("tbody tr").count());
   await page.getByRole("textbox", { name: "Search employees" }).fill("");
-  await page.getByRole("button", { name: "Ask Beacon" }).click();
+  await page.getByRole("button", { name: "Ask assistant" }).click();
   await page.locator(".chat-welcome").waitFor();
   await page.screenshot({
     animations: "disabled",

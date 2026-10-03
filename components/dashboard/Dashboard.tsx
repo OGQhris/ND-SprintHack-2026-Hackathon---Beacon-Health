@@ -434,7 +434,7 @@ export function Dashboard({ rosterOnly = false }: { rosterOnly?: boolean }) {
                 <p>“Who needs attention?” is a good place to start.</p>
               </div>
               <Button variant="outline" onClick={() => setChatOpen(true)}>
-                Ask Beacon <ArrowRight size={15} />
+                Ask assistant <ArrowRight size={15} />
               </Button>
             </div>
           </>
@@ -672,7 +672,7 @@ export function Dashboard({ rosterOnly = false }: { rosterOnly?: boolean }) {
             <ShieldCheck size={13} />
             Source-backed records. Clearer decisions.
           </span>
-          <span>Beacon Health · Michigan RN proof of concept</span>
+          <span>Beacon Health System · Michigan RN credentials</span>
         </footer>
       </div>
       <EmployeeDetail
@@ -689,7 +689,7 @@ export function Dashboard({ rosterOnly = false }: { rosterOnly?: boolean }) {
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
         <DialogContent className="assistant-drawer">
           <DialogTitle className="sr-only">
-            Beacon Credential Assistant
+            Beacon Health System Credential Assistant
           </DialogTitle>
           <DialogDescription className="sr-only">
             Ask questions about your employee credential records.

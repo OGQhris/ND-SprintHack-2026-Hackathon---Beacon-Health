@@ -56,21 +56,6 @@ function define<T extends z.ZodType>(
 }
 const text = z.string().trim().min(1).max(160);
 const empty = z.strictObject({});
-export function explicitlyRequestsVerification(message: string) {
-  return (
-    /\b(?:verify|reverify|re-verify|recheck)\b/i.test(message) ||
-    /\bcheck\b.{0,80}\b(?:license|credential)\b/i.test(message)
-  );
-}
-export function explicitlyRequestsBulkVerification(message: string) {
-  return (
-    explicitlyRequestsVerification(message) &&
-    /\b(?:all|everybody|everyone|every\s+(?:employee|credential|license)|entire\s+(?:roster|team))\b/i.test(
-      message,
-    ) &&
-    !/\b(?:don't|do not|not|never)\b/i.test(message)
-  );
-}
 const registry: RegisteredTool[] = [
   define(
     "get_employee_by_name",
@@ -202,41 +187,20 @@ const registry: RegisteredTool[] = [
   ),
   define(
     "verify_employee_credential",
-    "Perform one deterministic Michigan RN lookup and persist its result and audit record. Only use when the latest user explicitly requests verification. First identify a unique employee using lookup tools.",
+    "Verify an employee’s Michigan RN license using their employee ID, and save the result and audit record.",
     "Verifying credential with Michigan MILARA",
     z.strictObject({ employeeId: text }),
-    async (a, c) => {
-      if (
-        !explicitlyRequestsVerification(c.latestUserMessage) ||
-        /\b(?:don't|do not|never)\b/i.test(c.latestUserMessage)
-      )
-        return {
-          ok: false,
-          error: {
-            code: "ACTION_NOT_REQUESTED",
-            message:
-              "Verification requires an explicit request in the latest message.",
-          },
-        };
+    async (a) => {
       const employee = await verifyEmployee(a.employeeId);
       return { ok: employee.verificationState === "VERIFIED", employee };
     },
   ),
   define(
     "verify_all_credentials",
-    "Start sequential verification for the entire fourth-worksheet roster. Only use after explicit latest-user request to verify all/everybody. Returns STARTED and progress, not final results.",
+    "Start sequential verification for the entire fourth-worksheet roster. Returns STARTED and background progress.",
     "Starting sequential roster verification",
     empty,
-    async (_, c) => {
-      if (!explicitlyRequestsBulkVerification(c.latestUserMessage))
-        return {
-          ok: false,
-          error: {
-            code: "BULK_NOT_REQUESTED",
-            message:
-              "Bulk verification requires an explicit request to verify all credentials.",
-          },
-        };
+    async () => {
       return { ok: true, action: "STARTED", progress: await startVerifyAll() };
     },
   ),

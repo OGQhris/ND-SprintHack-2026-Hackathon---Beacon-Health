@@ -1,6 +1,6 @@
-# Beacon Credential Intelligence
+# Beacon Health System Credential Management
 
-A complete local proof of concept for Beacon Health manager credential follow-up. It imports **only worksheet four (`RNS`)**, verifies **Michigan Registered Nurse licenses only**, and connects a real streaming OpenAI assistant to approved database and verification tools.
+A complete local proof of concept for Beacon Health System manager credential follow-up. It imports **only worksheet four (`RNS`)**, verifies **Michigan Registered Nurse licenses only**, and connects a real streaming OpenAI assistant to approved database and verification tools.
 
 ## Run locally
 
@@ -33,7 +33,7 @@ npm run setup
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000/dashboard**. The dedicated assistant is **http://127.0.0.1:3000/assistant**; the dashboard's **Ask Beacon** button opens a compact version.
+Open **http://127.0.0.1:3000/dashboard**. The dedicated assistant is **http://127.0.0.1:3000/assistant**; the dashboard's **Ask assistant** button opens a compact version.
 
 The development server binds to loopback. Keep it running during verification, especially during a sequential roster check.
 
@@ -71,7 +71,7 @@ Have the server running and your OpenAI key configured before beginning. Open th
 
 For the tested live record, Michigan MILARA returned Registered Nurse, license **4704214941**, **Active**, issued **March 4, 1998**, expiring **March 4, 2028**, county **Kalamazoo**. These values are stored only after a successful lookup, never seeded from the request. The state site can update them. With just Kathryn checked, most of the roster still has unknown expiration dates; zero recorded alerts does not imply everyone is current.
 
-Optional: ask **Who reports to Christianna Davison?**, followed by **Do any of them expire soon?** To demonstrate bulk progress, explicitly ask **Verify everybody** or click **Verify all credentials**. That starts a sequential background job; it need not finish during a two-minute demo.
+Optional: ask **Who reports to Christianna Davison?**, followed by **Do any of them expire soon?** To demonstrate bulk progress, ask **Can you start verification for everyone please?** or click **Verify all credentials**. That starts a sequential background job; it need not finish during a two-minute demo.
 
 ## Implemented product
 
@@ -88,7 +88,7 @@ Optional: ask **Who reports to Christianna Davison?**, followed by **Do any of t
 
 `get_employee_by_name`, `search_employees`, `get_credentials_expiring_within_days`, `get_expired_credentials`, `get_employees_by_manager`, `get_unverified_employees`, `get_attention_needed`, `get_credential_summary`, `verify_employee_credential`, `verify_all_credentials`.
 
-Partial names return candidates instead of guessing. Expiration queries exclude already expired licenses. Manager matching uses exact spelling first and reports ambiguous partial matches. Bulk verification requires an explicit request in the latest user message, enforced both in the system instructions and backend tool gate.
+Partial names return candidates instead of guessing. Expiration queries exclude already expired licenses. Manager matching uses exact spelling first and reports ambiguous partial matches. Verification tool calls run directly without keyword checks on the user’s wording.
 
 ### State-source verification
 
@@ -157,3 +157,13 @@ Only worksheet four and Michigan RNs are supported. Re-import does not reconcile
 Production dependency audit passed with zero reported vulnerabilities after compatible dependency fixes. The development lint toolchain still inherits the published `braces` stack-exhaustion advisory; no patched compatible version was available during this build. It does not ship in the production dependency set.
 
 Official API references used for implementation: [Responses function calling](https://developers.openai.com/api/docs/guides/function-calling) and [Responses streaming](https://developers.openai.com/api/docs/guides/streaming-responses). Installed SDK types were inspected before selecting method names and event shapes.
+
+### Watch a verification
+
+Click **Verify** on an employee or ask the assistant to verify someone. For individual checks, a browser activity panel opens automatically with real Michigan MILARA screenshots, recorded target highlights, animated cursor movement, action captions, and the saved result. Closing the panel lets the check continue. Saved recordings can be reopened from employee verification history.
+
+Roster-wide checks show only the compact progress banner, without a browser preview or automatic viewer. The browser viewer remains available for individual employee checks.
+
+Playback controls let you pause, scrub, select an activity, or replay from the beginning. In employee details, expand a verification history entry and select **Replay this verification**. Older audits created before this feature have no recording. Each new audit stores a recording ID; JPEG frames and an atomic JSON manifest persist in the ignored `data/verification-runs/` directory, so replay survives server restarts. Back up that directory alongside the database. Recordings are step snapshots, not continuous video; the cursor is an animated overlay at the actual element coordinates. Reduced-motion settings disable animation.
+
+The app polls activity every 900 ms. This initial local version shares the existing single-process verification queue; production deployments would need shared job storage and access controls for recordings. No recording is exposed through an arbitrary filesystem path. Run `npm run test:viewer` with the dev server running to exercise a real lookup, live panel, replay, frame routes, mobile layout, and reduced-motion support. Set `TEST_BASE_URL` if the server uses another port.
