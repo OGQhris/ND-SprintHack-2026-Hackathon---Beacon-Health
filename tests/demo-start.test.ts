@@ -116,9 +116,17 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
       const body = JSON.parse(options?.body as string);
       assert.deepEqual(body.to, ["owner@example.com"]);
       assert.equal(body.from, "Beacon Demo <onboarding@resend.dev>");
-      assert.equal(body.subject, "Jamie Morgan expires in 30 days!");
-      assert.match(body.text, /fictional/);
-      assert.match(body.text, /fictional/);
+      assert.equal(body.subject, "Kathryn Cell expires in 5 days!");
+      const kathryn = await db.employee.findUniqueOrThrow({
+        where: { id: "kathryn" },
+      });
+      for (const content of [body.text, body.html]) {
+        assert.match(content, /Kathryn Cell/);
+        assert.match(content, /expires in 5 days/);
+        assert.match(content, /simulated/);
+        assert.ok(content.includes(kathryn.demoExpirationDate!));
+        assert.doesNotMatch(content, /Jamie Morgan|30 days|fictional/);
+      }
       assert.ok(options?.signal);
       return Response.json({ id: "fixture-email" });
     };

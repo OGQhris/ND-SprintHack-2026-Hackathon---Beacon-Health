@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resetDemoEmployees } from "@/lib/sample-employees";
+import { db } from "@/lib/db";
 import { guardOrigin, safeError } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -20,8 +21,17 @@ export async function POST(request: Request) {
   }
   shared.beaconDemoStarting = true;
   try {
-    const employees = await resetDemoEmployees();
-    const expirationDate = employees[0].expirationDate!;
+    await resetDemoEmployees();
+    const matches = await db.employee.findMany({
+      where: { firstName: "Kathryn", lastName: "Cell", sourceSheet: "RNS" },
+      select: { demoExpirationDate: true },
+    });
+    const expirationDate =
+      matches.length === 1 ? matches[0].demoExpirationDate : null;
+    if (!expirationDate)
+      throw new Error(
+        "Kathryn Cell's demo expiration date could not be found.",
+      );
     if (!apiKey || !recipient || !z.email().safeParse(recipient).success) {
       return Response.json({
         samplesAdded: true,
@@ -45,9 +55,9 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           from: "Beacon Demo <onboarding@resend.dev>",
           to: [recipient],
-          subject: "Jamie Morgan expires in 30 days!",
-          text: `Jamie Morgan's Registered Nurse credential expires in 30 days, on ${expirationDate}.\n\nPlease follow up with Jamie to confirm their renewal before the expiration date.\n\nDemo notification: Jamie Morgan is a fictional sample employee and does not represent a real employee license status.`,
-          html: `<h1>Jamie Morgan expires in 30 days!</h1><p>Jamie Morgan's Registered Nurse credential expires on <strong>${expirationDate}</strong>.</p><p>Please follow up with Jamie to confirm their renewal before the expiration date.</p><hr><p><strong>Demo notification:</strong> This expiration date is simulated for the Beacon demo and does not represent a real employee license status.</p>`,
+          subject: "Kathryn Cell expires in 5 days!",
+          text: `Kathryn Cell's Registered Nurse credential expires in 5 days, on ${expirationDate}.\n\nPlease follow up with Kathryn to confirm her renewal before the expiration date.\n\nDemo notification: Kathryn Cell is a real employee, but this expiration date is simulated for the Beacon demo and does not represent her actual license expiration. Run a live verification to retrieve the source date.`,
+          html: `<h1>Kathryn Cell expires in 5 days!</h1><p>Kathryn Cell's Registered Nurse credential expires in 5 days, on <strong>${expirationDate}</strong>.</p><p>Please follow up with Kathryn to confirm her renewal before the expiration date.</p><hr><p><strong>Demo notification:</strong> Kathryn Cell is a real employee, but this expiration date is simulated for the Beacon demo and does not represent her actual license expiration. Run a live verification to retrieve the source date.</p>`,
         }),
         signal: AbortSignal.timeout(15_000),
       });
