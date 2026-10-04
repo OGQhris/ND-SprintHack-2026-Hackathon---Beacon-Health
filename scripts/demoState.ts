@@ -68,7 +68,7 @@ function databaseHolders(): string[] {
     return execFileSync("lsof", ["-t", dbPath], { stdio: ["ignore", "pipe", "ignore"] })
       .toString()
       .split(/\s+/)
-      .filter(Boolean);
+      .filter((pid) => pid && pid !== String(process.pid));
   } catch (error) {
     const status = (error as { status?: number }).status;
     if (status === 1) return [];
@@ -150,9 +150,10 @@ async function restore(name: string, force: boolean) {
 
 async function reset(keep: string[]) {
   const employees = await db.employee.findMany({ select: { id: true, firstName: true, lastName: true } });
-  const wanted = new Set(keep.map((n) => n.toLowerCase().replace(/\s+/g, " ")));
-  const kept = employees.filter((e) => wanted.has(`${e.firstName} ${e.lastName}`.toLowerCase()));
-  const missing = [...wanted].filter((n) => !kept.some((e) => `${e.firstName} ${e.lastName}`.toLowerCase() === n));
+  const normalize = (n: string) => n.toLowerCase().replace(/\s+/g, " ").trim();
+  const wanted = new Set(keep.map(normalize));
+  const kept = employees.filter((e) => wanted.has(normalize(`${e.firstName} ${e.lastName}`)));
+  const missing = keep.filter((n) => !kept.some((e) => normalize(`${e.firstName} ${e.lastName}`) === normalize(n)));
   if (missing.length) fail(`Nobody on the roster is named ${missing.join(", ")}. Names must match the workbook spelling.`);
   const keptIds = kept.map((e) => e.id);
 

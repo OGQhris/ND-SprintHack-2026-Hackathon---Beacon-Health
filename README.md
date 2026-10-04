@@ -164,6 +164,31 @@ Screenshots from browser checks are saved locally in the ignored `debug/` direct
 | `GET /api/workspace`             | The front end's whole snapshot: employees, credentials, history, alert actions, batch, demo clock.     |
 | `POST /api/ask`                  | Streams the assistant (SSE) for `{ question, history, threadId }`; a JSON rule-based answer without a key. |
 
+## Deploy to Fly.io
+
+The app needs a real Chromium (Playwright) and a writable SQLite file, so it runs as one container with a persistent volume rather than on serverless hosts. The `Dockerfile` starts from the official Playwright image (its tag must match the `playwright` version in `package.json`), `fly.toml` mounts a volume at `/app/data` for the database, recordings and demo clock, and `scripts/docker-entrypoint.sh` seeds an empty volume from a snapshot, applies migrations and starts the server.
+
+```bash
+brew install flyctl && fly auth signup        # or fly auth login
+npm run demo:snapshot -- pristine             # the state the demo should open with
+deploy/prepare-seed.sh pristine               # copies it to deploy/seed/beacon.db (ignored by git, baked into the image)
+fly launch --copy-config --no-deploy --ha=false   # choose an app name and a region; keep the generated settings
+fly secrets set OPENAI_API_KEY=sk-... OPENAI_MODEL=gpt-5.4-mini
+fly deploy --ha=false
+fly open /dashboard
+```
+
+The first deploy builds the image on Fly's remote builder (several minutes: it installs dependencies, runs `next build` and downloads IBM Plex Sans). The app URL is `https://<app-name>.fly.dev`. One machine with 2 GB of memory is configured; Chromium does not fit in the 256 MB default. The machine stops when idle and restarts on the next request, which adds a few seconds to the first page load.
+
+Operating it:
+
+- `fly logs` shows the same `[Playwright]`, `[AI]` and `[Credential Verification]` lines as the dev server.
+- `fly ssh console -C "npm run demo:reset -- --keep 'Kathryn Cell'"` resets the hosted roster before a demo; `demo:snapshot` works there too. `demo:restore` does not, because the server holds the database open; redeploy with a new seed instead, after `fly volumes destroy` if the volume already has data (the entrypoint only seeds an empty volume).
+- The deploy uploads your local checkout (respecting `.dockerignore`, not `.gitignore`), which is how the seed database and nothing else from `data/` reaches the image. The repository stays free of employee data.
+- Costs: check Fly's current pricing; a single shared-CPU machine that stops when idle plus a 1 GB volume is at the bottom of their scale, but a payment method is required.
+
+Railway works the same way: install the Railway CLI, `railway init`, add a volume mounted at `/app/data` and the `OPENAI_API_KEY` variable in the dashboard, set the service memory to 2 GB, then `railway up` (add a `.railwayignore` that does not exclude `deploy/seed`). Vercel and other serverless hosts cannot run this app: no browser, no writable disk.
+
 ## Practical limits
 
 This is a local hackathon workspace: no enterprise authentication, SSO, production notification delivery, or scheduled verification. The attention center implements visual 30/14/7-day follow-up. Batch progress is in memory and requires the server to keep running. Paginated state results are conservatively sent to human review rather than automatically selecting a license. The public source sometimes returns HTTP 502; such failures are shown honestly, retain historical results, and can be retried.
@@ -173,6 +198,22 @@ Only worksheet four and Michigan RNs are supported. Re-import does not reconcile
 Production dependency audit passed with zero reported vulnerabilities after compatible dependency fixes. The development lint toolchain still inherits the published `braces` stack-exhaustion advisory; no patched compatible version was available during this build. It does not ship in the production dependency set.
 
 Official API references used for implementation: [Responses function calling](https://developers.openai.com/api/docs/guides/function-calling) and [Responses streaming](https://developers.openai.com/api/docs/guides/streaming-responses). Installed SDK types were inspected before selecting method names and event shapes.
+
+### Rehearse, then reset for the demo
+
+Every verification writes to the database and the recordings folder, so rehearse with a saved state you can return to:
+
+```bash
+npm run demo:snapshot -- pristine        # works while the dev server runs (consistent SQLite copy)
+# ... click Verify now, Verify selected, Verify all on this page, ask the assistant to verify ...
+# Ctrl+C the dev server, then:
+npm run demo:restore -- pristine
+npm run dev
+```
+
+A snapshot holds `prisma/beacon.db` (employees, audits, alert actions), `data/verification-runs/` (browser recordings) and `data/demo-settings.json` (demo clock) under the ignored `data/snapshots/<name>/`. `npm run demo:list` shows what exists. Restoring refuses to run while a server has the database open, because it swaps the files underneath it.
+
+To start from a clean roster instead, `npm run demo:reset` puts every employee back to **Not yet verified** and deletes audits, alert actions, recordings and the demo clock; `npm run demo:reset -- --keep "Kathryn Cell"` keeps one person's real record so the demo opens with a single verified nurse. Reset works with the server running (the dashboard picks it up on the next poll); restart the server if the demo clock was on. Ask Beacon threads live in the browser; delete them from the `/ask` page if a clean chat matters.
 
 ### Watch a verification
 
