@@ -1,4 +1,3 @@
-import { getDemoSettings } from "@/lib/demo";
 import { listEmployees, summarize } from "@/lib/employees";
 import { getBatchProgress } from "@/services/credentialService";
 import { todayDate } from "@/lib/expiration";
@@ -10,7 +9,6 @@ export async function GET() {
   try {
     const employees = await listEmployees();
     return Response.json({
-      demo: getDemoSettings(),
       employees,
       summary: summarize(employees),
       batch: getBatchProgress(),

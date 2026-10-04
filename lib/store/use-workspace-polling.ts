@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { fullName } from "@/lib/data/format";
 import { REASON_LABEL } from "@/lib/data/status";
 import { WORKSPACE_REFRESH_EVENT } from "@/lib/store/workspace-events";
+import { isAssistantVerification } from "@/lib/store/assistant-verifications";
 import type { StoreState, WorkspacePayload } from "@/lib/types";
 
 export const WORKSPACE_URL = "/api/workspace";
@@ -67,6 +68,7 @@ function announceChanges(previous: WorkspacePayload, next: WorkspacePayload, cur
     if (!credential.lastChecked || credential.inFlight) continue;
     if (!before.has(credential.id) || before.get(credential.id) === credential.lastChecked) continue;
     if (held.get(credential.id) === credential.lastChecked) continue;
+    if (isAssistantVerification(credential.employeeId, credential.lastChecked)) continue;
     const name = names.get(credential.employeeId) ?? "Employee";
     if (credential.verificationState === "verified") {
       toast.success(`${name}: credential verified`);

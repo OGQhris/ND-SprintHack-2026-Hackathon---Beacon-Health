@@ -101,7 +101,7 @@ export function EmployeeCardList({ rows, today, sampleCount = 0, className }: Pr
       })}
       {sampleCount > 0 ? (
         <p className="px-1 text-xs text-ink-faint">
-          Includes {sampleCount} sample {sampleCount === 1 ? "record" : "records"} for non-RN groups.
+          Includes {sampleCount} fictional sample {sampleCount === 1 ? "employee" : "employees"}, labeled Sample.
         </p>
       ) : null}
     </div>

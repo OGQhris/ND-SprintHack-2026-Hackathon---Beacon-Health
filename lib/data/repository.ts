@@ -1,7 +1,6 @@
 import type { AlertAction, VerificationAudit } from "@prisma/client";
 import { buildSeed, type AuditDto } from "@/lib/data/beacon-adapter";
 import { db } from "@/lib/db";
-import { getDemoSettings } from "@/lib/demo";
 import { listEmployees } from "@/lib/employees";
 import { todayDate } from "@/lib/expiration";
 import { aiConfigured } from "@/lib/openai";
@@ -66,7 +65,7 @@ function toAlertActions(rows: AlertAction[]): AlertActions {
   return { resolvedAlertIds, reminders };
 }
 
-/** Everything the front end needs in one snapshot: the seed plus batch, demo clock and AI availability. */
+/** Everything the front end needs in one snapshot: the seed plus batch and AI availability. */
 export async function loadWorkspace(): Promise<WorkspacePayload> {
   await recoverInterruptedChecks();
   const employees = await listEmployees();
@@ -81,7 +80,6 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
   return {
     seed,
     batch: getBatchProgress(),
-    demo: getDemoSettings(),
     aiConfigured: aiConfigured(),
     generatedAt: new Date().toISOString(),
   };

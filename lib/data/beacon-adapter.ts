@@ -147,6 +147,7 @@ export function toSeedEmployee(e: EmployeeRecord): Employee {
     state: RN_STATE,
     sourceSheet: e.sourceSheet,
     sourceRow: e.sourceRow,
+    isSample: e.isSample,
   };
 }
 
@@ -267,6 +268,6 @@ export function buildSeed(input: {
     sourceLinks: { RNS: MICHIGAN_URL },
     alertActions: input.alertActions,
     today: input.today,
-    sampleCount: 0,
+    sampleCount: input.employees.filter((e) => e.isSample).length,
   };
 }

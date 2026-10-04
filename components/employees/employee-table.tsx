@@ -225,8 +225,7 @@ export function EmployeeTable({ rows, today, sampleCount = 0, selection, onClear
         </Table>
         {sampleCount > 0 ? (
           <p className="border-t border-rule px-3 py-2 text-xs text-ink-faint">
-            Includes {sampleCount} sample {sampleCount === 1 ? "record" : "records"} for non-RN groups. Registered Nurses
-            are Beacon&apos;s credentialing list.
+            Includes {sampleCount} fictional sample {sampleCount === 1 ? "employee" : "employees"}, labeled Sample.
           </p>
         ) : null}
       </div>

@@ -204,3 +204,26 @@
     }
   }
 }
+
+@keyframes agent-preview-draw {
+  from { stroke-dashoffset: 1; opacity: 1; }
+  80% { stroke-dashoffset: 0; opacity: 1; }
+  to { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes agent-preview-reveal {
+  from { clip-path: inset(0 0 100% 0); opacity: 0; transform: translateY(-6px); }
+  to { clip-path: inset(0); opacity: 1; transform: translateY(0); }
+}
+@keyframes agent-preview-type {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .agent-preview-outline { color: var(--color-seal); }
+  .agent-preview-outline rect { stroke-dasharray: 1; animation: agent-preview-draw 900ms ease-in-out both; }
+  .agent-preview-reveal { animation: agent-preview-reveal 350ms 650ms ease-out both; }
+  .agent-preview-typing { animation: agent-preview-type 450ms steps(24, end) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-preview-outline { display: none; }
+}

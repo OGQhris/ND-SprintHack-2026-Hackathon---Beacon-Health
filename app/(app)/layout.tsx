@@ -5,7 +5,7 @@ import { loadWorkspace } from "@/lib/data/repository";
 import { CredentialStoreProvider } from "@/lib/store/credential-store";
 import type { WorkspacePayload } from "@/lib/types";
 
-// Read per request: the snapshot reflects the live database, the demo clock and any running roster check.
+// Read per request: the snapshot reflects the live database and any running roster check.
 export const dynamic = "force-dynamic";
 
 type Failure = { title: string; description: string; details?: string[] };

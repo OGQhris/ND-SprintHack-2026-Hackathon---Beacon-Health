@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { latestRecordingFor } from "@/services/verificationRecorder";
 import type { FunctionTool } from "openai/resources/responses/responses";
 import {
   listEmployees,
@@ -59,7 +60,7 @@ const empty = z.strictObject({});
 const registry: RegisteredTool[] = [
   define(
     "get_employee_by_name",
-    "Find an employee by first and last name. Returns candidates for ambiguous names; never silently selects among candidates.",
+    "Find an employee by first and last name in the stored database. This is a lookup only and does not verify or recheck a license. If the user asked to verify, use the resolved employee ID with verify_employee_credential next. Returns candidates for ambiguous names; never silently selects among candidates.",
     "Looking up employee details",
     z.strictObject({ firstName: text, lastName: text }),
     async (a) =>
@@ -67,7 +68,7 @@ const registry: RegisteredTool[] = [
   ),
   define(
     "search_employees",
-    "Search first, last, or full employee names. Partial matches are returned for clarification.",
+    "Search stored employee names to resolve identity. This only reads the database; it does not verify a license. For a verification request, call verify_employee_credential with the resolved ID next. Partial matches are returned for clarification.",
     "Searching employee records",
     z.strictObject({ query: text }),
     async (a) => ({
@@ -187,12 +188,13 @@ const registry: RegisteredTool[] = [
   ),
   define(
     "verify_employee_credential",
-    "Verify an employee’s Michigan RN license using their employee ID, and save the result and audit record.",
+    "ACTION: Launch a fresh live Playwright browser verification of this employee's Michigan RN license against Michigan MILARA, exactly like clicking the manual Verify now/Reverify button. Use when asked to verify, reverify, recheck, or run a fresh/live license check, even if the employee was previously verified. Requires the employee ID from a lookup tool. Saves fresh source results and an audit/browser recording. This is not a database-only lookup. Fictional sample employees skip live checks.",
     "Verifying credential with Michigan MILARA",
     z.strictObject({ employeeId: text }),
     async (a) => {
+      const startedAt = new Date().toISOString();
       const employee = await verifyEmployee(a.employeeId);
-      return { ok: employee.verificationState === "VERIFIED", employee };
+      return { ok: employee.verificationState === "VERIFIED", employee, recordingId: latestRecordingFor(a.employeeId, startedAt) };
     },
   ),
   define(

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const ADVANCE_MS = 1200;
+const ADVANCE_MS = 750;
 
 /**
- * Step playback for one run: the current step index, play/pause, and auto-advance every 1.2 s while
+ * Step playback for one run: the current step index, play/pause, and auto-advance every 0.75 s while
  * playing. Mount it keyed by run id so a new run starts from the first step.
  */
 export function usePlayback(count: number, open: boolean) {

@@ -596,39 +596,3 @@ test("selected verification checks only unique selected employees", async () => 
   );
   await assert.rejects(() => startVerifyAll(provider, []), /at least one/);
 });
-
-test("demo expirations cover all alert windows and never replace source database dates", async () => {
-  const { seededExpiration, validDemoDate } = await import("../lib/demo");
-  const settings = {
-    enabled: true,
-    today: "2026-10-03",
-    seedDate: "2026-10-03",
-  };
-  assert.deepEqual(
-    [0, 1, 2, 3, 4].map((row) =>
-      expirationCategory(seededExpiration(row, settings), settings.today),
-    ),
-    [
-      "EXPIRED",
-      "EXPIRING_WITHIN_7_DAYS",
-      "EXPIRING_WITHIN_14_DAYS",
-      "EXPIRING_WITHIN_30_DAYS",
-      "ACTIVE",
-    ],
-  );
-  assert.equal(seededExpiration(1, { ...settings, enabled: false }), null);
-  assert.equal(
-    expirationCategory(seededExpiration(1, settings), "2026-10-10"),
-    "EXPIRED",
-  );
-  assert.equal(validDemoDate("2026-02-30"), false);
-  assert.equal(validDemoDate("2026-02-28"), true);
-  const employee = await db.employee.findFirstOrThrow();
-  const original = employee.expirationDate;
-  seededExpiration(employee.sourceRow, settings);
-  assert.equal(
-    (await db.employee.findUniqueOrThrow({ where: { id: employee.id } }))
-      .expirationDate,
-    original,
-  );
-});

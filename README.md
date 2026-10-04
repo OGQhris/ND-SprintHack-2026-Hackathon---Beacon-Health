@@ -37,6 +37,12 @@ Open **http://127.0.0.1:3000/dashboard**. The dedicated assistant is **http://12
 
 The development server binds to loopback. Keep it running during verification, especially during a sequential roster check.
 
+### Sample employees and notification demo
+
+Four fictional employees are stored alongside the imported roster and labeled **Sample**: Jamie Morgan (30 days), Alex Rivera (14 days), Taylor Brooks (17 days), and Casey Reed (expired three days ago). Their dates are set relative to the actual local date when seeded, then count down normally. There is no demo clock or date overlay on real employees. `npm run setup` adds these records; `npm run demo:seed` resets just their sample dates.
+
+Set `RESEND_API_KEY` and `RESEND_TEST_EMAIL_TO` in `.env.local` to your Resend account credentials. **BM → Start demo** resets the four sample dates and sends **Jamie Morgan expires in 30 days!** through `onboarding@resend.dev`. The message identifies Jamie as fictional. The send uses a 15-second timeout; inbox arrival depends on your mail provider.
+
 ### Import from the original file
 
 ```bash
@@ -126,7 +132,7 @@ npm run test:live-ui
 npm run test:provider
 ```
 
-`test:ui` drives the running app in headless Chromium: the workspace payload, dashboard, employee detail, employees, alerts, Ask Beacon, the legacy redirects, a demo clock round trip (restored afterwards), the phone layout and one assistant question (`SKIP_AI=1` skips it). It never starts a verification. It targets `TEST_BASE_URL` (default `http://127.0.0.1:3000`); to run it beside your own `npm run dev`, start a second server in its own build directory, since Next.js allows one dev server per `.next`:
+`test:ui` drives the running app in headless Chromium: the workspace payload, dashboard, employee detail, employees, alerts, Ask Beacon, the legacy redirects, persisted sample employee records, the phone layout and one assistant question (`SKIP_AI=1` skips it). It never starts a verification. It targets `TEST_BASE_URL` (default `http://127.0.0.1:3000`); to run it beside your own `npm run dev`, start a second server in its own build directory, since Next.js allows one dev server per `.next`:
 
 ```bash
 NEXT_DIST_DIR=.next/ui-check npx next dev --hostname 127.0.0.1 --port 3105
@@ -161,7 +167,7 @@ Screenshots from browser checks are saved locally in the ignored `debug/` direct
 | `GET /api/chat/session`          | Creates/resumes the browser's conversation and loads history.                                         |
 | `POST /api/chat/session`         | Creates a fresh conversation.                                                                         |
 | `POST /api/chat`                 | Validates a message and streams assistant/tool/text/completion/error events.                          |
-| `GET /api/workspace`             | The front end's whole snapshot: employees, credentials, history, alert actions, batch, demo clock.     |
+| `GET /api/workspace`             | The front end's whole snapshot: employees, credentials, history, alert actions, batch, and sample labels.     |
 | `POST /api/ask`                  | Streams the assistant (SSE) for `{ question, history, threadId }`; a JSON rule-based answer without a key. |
 
 ## Practical limits
@@ -186,12 +192,14 @@ The app polls activity every 900 ms. This initial local version shares the exist
 
 ### Workspace and demo alerts
 
+Ask Beacon displays every tool call as it runs, including the tool name and running/completed status. Individual `verify_employee_credential` calls draw an inline browser preview in the chat, using the recorded licensing screenshots and moving cursor from the existing viewer. Click the preview or its expand button for the larger viewer; saved recordings remain attached to the conversation. `npm run test:agent-chat` checks streamed tool states, preview playback, expansion, saved history, and mobile layout with local fixtures and no real model or license requests.
+
 The sidebar provides Dashboard, Employees, Alerts, and Ask Beacon. The credential store loads one server snapshot and polls `/api/workspace` every four seconds across page navigation, so checks started by the assistant or another tab appear without a reload. Search (name, manager, license number), group, source and status filters, row selection, **Verify selected** and **Verify all on this page** use the same roster and sequential verification service. Verification start, completion, and failure notifications appear as toasts.
 
 Alert tabs cover expired credentials, the 7-, 14-, and 30-day renewal windows, and verification issues (including never-verified people, labelled **Not yet verified**). Each card offers **Verify now** or **Reverify**, **Mark resolved** (with undo), **Reopen**, and, for renewal warnings, **Send reminder**; resolve and reminder actions are stored in the `AlertAction` table and survive reloads.
 
-Open the **Demo clock** in the top bar and choose **Enable demo data** to populate renewal windows predictably. Expirations are seeded relative to the saved seed date; moving the clock with the date input or **+7 days** and **+30 days** changes alert categories without moving those seeded dates. **Reset clock** returns to the seed date, and **Use live dates** restores source expirations. An amber **Demo clock on** chip and **Demo** tags next to dates distinguish simulated values, the employee page shows the source's own expiration, and the assistant receives the same demo context. Settings persist in ignored `data/demo-settings.json`; no employee source dates or audit records are overwritten.
+Sample employees have persisted expiration dates and are labeled **Sample** throughout the employee list. Their countdowns use the actual local date. Reset their four dates with `npm run demo:seed`; real employee dates and audit history are preserved.
 
 The Michigan scraper selects **Registered Nurse** before searching and falls back to labeled detail fields if stable source element IDs are unavailable. Exact RN profession matching still applies to parsed records.
 
-With the dev server running, `npm run test:ui` covers the ported UI (see Validation). `npm run test:scraper` checks RN filtering and fallback extraction against local HTML fixtures. `npm run test:workspace` and `npm run test:viewer` still target the previous UI.
+With the dev server running, `npm run test:ui` covers the ported UI (see Validation). `npm run test:scraper` checks RN filtering and fallback extraction against local HTML fixtures. `npm run test:workspace` checks the sample records and BM menu without sending emails. `npm run test:viewer` still targets the previous UI.

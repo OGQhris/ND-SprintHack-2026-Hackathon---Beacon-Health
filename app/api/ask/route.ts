@@ -38,7 +38,6 @@ function toStoreState(workspace: WorkspacePayload): StoreState {
     resolvedAlertIds: [...seed.alertActions.resolvedAlertIds],
     reminders: { ...seed.alertActions.reminders },
     batch: workspace.batch,
-    demo: workspace.demo,
     aiConfigured: workspace.aiConfigured,
     lastSyncedAt: workspace.generatedAt,
   };

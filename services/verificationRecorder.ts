@@ -16,6 +16,11 @@ export const validRunId = (id: string) => /^[a-f0-9-]{36}$/.test(id);
 export function activeRuns() {
   return [...runs.values()].filter((r) => !r.finishedAt);
 }
+export function latestRecordingFor(employeeId: string, startedAfter: string) {
+  return [...runs.values()]
+    .filter((run) => run.employeeId === employeeId && run.startedAt >= startedAfter)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.id;
+}
 export async function getRun(id: string): Promise<VerificationRun | null> {
   if (!validRunId(id)) return null;
   const live = runs.get(id);

@@ -19,6 +19,10 @@ export type ChatActivity = {
   label: string;
   done: boolean;
   ok: boolean;
+  name?: string;
+  employeeId?: string;
+  startedAt?: string;
+  recordingId?: string;
 };
 
 export type ChatMessage = {
