@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-test("Start demo seeds four fictional employees and sends a matching notification without modifying the real roster", async () => {
+test("Start demo waits 30 seconds before sending and preserves the real roster", async (t) => {
   const temp = await mkdtemp(join(tmpdir(), "beacon-tests-demo-"));
   process.env.DATABASE_URL = `file:${join(temp, "test.db")}`;
   process.env.DEMO_DATA_DIR = temp;
@@ -22,6 +22,21 @@ test("Start demo seeds four fictional employees and sends a matching notificatio
   const { serializeEmployee } = await import("../lib/employees");
   const { todayDate, daysUntilExpiration } = await import("../lib/expiration");
   const originalFetch = globalThis.fetch;
+  const originalTimeout = globalThis.setTimeout;
+  let releaseDelay: () => void = () => {};
+  let delayObserved: () => void = () => {};
+  const waiting = new Promise<void>((resolve) => { delayObserved = resolve; });
+  let autoAdvance = false;
+  t.mock.method(globalThis, "setTimeout", (callback: () => void, delay: number, ...args: unknown[]) => {
+    if (delay > 20_000 && delay <= 30_000) {
+      assert.ok(delay > 29_000, "send is scheduled about 30 seconds after the click");
+      releaseDelay = callback;
+      delayObserved();
+      if (autoAdvance) queueMicrotask(callback);
+      return {};
+    }
+    return originalTimeout(callback, delay, ...args);
+  });
   const request = (origin = "http://localhost:3000") =>
     new Request("http://localhost:3000/api/demo/start", {
       method: "POST",
@@ -57,7 +72,12 @@ test("Start demo seeds four fictional employees and sends a matching notificatio
       assert.ok(options?.signal);
       return Response.json({ id: "fixture-email" });
     };
-    const response = await POST(request());
+    const pending = POST(request());
+    await waiting;
+    assert.equal(calls, 0, "email is not sent during the delay");
+    assert.equal((await POST(request())).status, 409, "duplicate clicks cannot send another email during the delay");
+    releaseDelay();
+    const response = await pending;
     assert.equal(response.status, 200);
     assert.equal((await response.json()).emailId, "fixture-email");
     assert.equal(calls, 1);
@@ -80,6 +100,7 @@ test("Start demo seeds four fictional employees and sends a matching notificatio
     }
     assert.equal(serializeEmployee(source).expirationDate, "2028-05-01");
     globalThis.fetch = async () => Response.json({}, { status: 403 });
+    autoAdvance = true;
     const rejected = await POST(request());
     assert.equal(rejected.status, 502);
     const failed = await rejected.json();

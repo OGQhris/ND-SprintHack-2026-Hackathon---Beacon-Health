@@ -26,9 +26,6 @@ export function ProfileMenu() {
       if (result.samplesAdded) requestWorkspaceRefresh();
       if (!response.ok)
         throw new Error(result.error || "Could not start the demo.");
-      toast.success("Demo started", {
-        description: `Jamie Morgan expires in 30 days. Resend accepted the demo notification to ${result.recipient}.`,
-      });
     } catch (error) {
       toast.error("Demo notification failed", {
         description:

@@ -3,9 +3,11 @@ import { seedSampleEmployees } from "@/lib/sample-employees";
 import { guardOrigin, safeError } from "@/lib/http";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 const shared = globalThis as unknown as { beaconDemoStarting?: boolean };
 
 export async function POST(request: Request) {
+  const sendAfter = Date.now() + 30_000;
   const blocked = guardOrigin(request);
   if (blocked) return blocked;
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -30,8 +32,8 @@ export async function POST(request: Request) {
     const employees = await seedSampleEmployees();
     const expirationDate = employees[0].expirationDate!;
 
-    // Send immediately, with a bounded timeout: no browser timer or background task
-    // can be lost if the user navigates away. Source license dates remain untouched.
+    // Keep the delay on the server so navigation doesn't cancel the demo email.
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, sendAfter - Date.now())));
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
