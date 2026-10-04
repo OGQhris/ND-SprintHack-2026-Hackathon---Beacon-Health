@@ -48,13 +48,77 @@ async function fillName(
     field,
   );
 }
-async function readDetail(page: Page) {
+export async function selectRnLicenseType(
+  page: Page,
+  recorder?: VerificationRecorder,
+) {
+  const licenseType = page.locator(
+    "#ctl00_PlaceHolderMain_refLicenseeSearchForm_ddlLicenseType",
+  );
+  if (await licenseType.count()) {
+    await recorder?.capture(
+      page,
+      "Filtering to Registered Nurse licenses",
+      "click",
+      licenseType,
+    );
+    await licenseType.selectOption({ label: "Registered Nurse" });
+  }
+}
+export async function readDetail(page: Page) {
   const fields: Record<string, string> = {};
   for (const [key, id] of Object.entries(detailFields)) {
     const el = page.locator(`#ctl00_PlaceHolderMain_licenseeGeneralInfo_${id}`);
     fields[key] = (await el.count())
       ? cleanSourceText(await el.innerText())
       : "";
+  }
+  if (Object.values(fields).some((value) => !value)) {
+    const fallback = await page.evaluate(() => {
+      const result: Record<string, string> = {};
+      const labels = [
+        "License Type",
+        "License Number",
+        "Name",
+        "License Issue Date",
+        "License Expiration Date",
+        "License Status",
+        "County",
+      ];
+      for (const label of labels) {
+        const nodes = Array.from(
+          document.querySelectorAll("td,th,dt,label,span,strong"),
+        );
+        const match = nodes.find(
+          (el) =>
+            (el.textContent || "")
+              .replace(/[\u200B-\u200D\uFEFF]/g, "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .replace(/:$/, "")
+              .toLowerCase() === label.toLowerCase(),
+        );
+        if (!match) continue;
+        const cell = match.closest("td,th,dt");
+        const sibling = match.nextElementSibling || cell?.nextElementSibling;
+        let value = (sibling?.textContent || "")
+          .replace(/[\u200B-\u200D\uFEFF]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!value && match.parentElement)
+          value = (match.parentElement.textContent || "")
+            .replace(/[\u200B-\u200D\uFEFF]/g, "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .replace(new RegExp(`^${label}\\s*:?\\s*`, "i"), "");
+        if (value && value.toLowerCase() !== label.toLowerCase())
+          result[label] = value;
+      }
+      return result;
+    });
+    for (const label of Object.keys(detailFields))
+      if (!fields[label])
+        fields[label] = cleanSourceText(fallback[label] || "");
   }
   return fields;
 }
@@ -96,6 +160,7 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
         "Opened Michigan MILARA licensing search",
         "navigate",
       );
+      await selectRnLicenseType(page, recorder);
       console.log("[Playwright] Filling First Name:", employee.firstName);
       await fillName(
         page,
@@ -134,6 +199,8 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
             !!document.querySelector(
               "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
             ) ||
+            (/License Issue Date/i.test(text) &&
+              /License Expiration Date/i.test(text)) ||
             /no records|no results|no matching|results found matching|licensee list|licensee information|search results|bad gateway|service unavailable|error code 50[234]/i.test(
               text,
             ) ||
@@ -153,20 +220,24 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
         /bad gateway|service unavailable|error code 50[234]/i.test(sourceBody)
       )
         throw new Error("Michigan MILARA returned a temporary server error.");
+      const initialDetail = await readDetail(page);
       if (
-        await page
-          .locator(
-            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
-          )
-          .count()
+        initialDetail["License Number"] &&
+        initialDetail["License Expiration Date"]
       ) {
         await recorder?.capture(
           page,
           "Reading license details",
           "read",
-          page.locator(
-            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
-          ),
+          (await page
+            .locator(
+              "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+            )
+            .count())
+            ? page.locator(
+                "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+              )
+            : undefined,
         );
         const fields = await readDetail(page);
         console.log("[Playwright] Result found");
@@ -236,18 +307,27 @@ export class MichiganRNPlaywrightProvider implements CredentialProvider {
           grid.getByRole("link", { name: number, exact: true }),
         );
         await grid.getByRole("link", { name: number, exact: true }).click();
-        await page
-          .locator(
-            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
-          )
-          .waitFor();
+        await page.waitForFunction(
+          () =>
+            !!document.querySelector(
+              "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeType_value",
+            ) ||
+            (/License Issue Date/i.test(document.body?.innerText || "") &&
+              /License Expiration Date/i.test(document.body?.innerText || "")),
+        );
         await recorder?.capture(
           page,
           "Reading license details",
           "read",
-          page.locator(
-            "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
-          ),
+          (await page
+            .locator(
+              "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+            )
+            .count())
+            ? page.locator(
+                "#ctl00_PlaceHolderMain_licenseeGeneralInfo_lblLicenseeNumber_value",
+              )
+            : undefined,
         );
         const detail = await readDetail(page);
         return classifyCandidates(

@@ -163,12 +163,18 @@ export async function verifyEmployee(
 }
 export async function startVerifyAll(
   provider: CredentialProvider = new MichiganRNPlaywrightProvider(),
+  employeeIds?: string[],
 ) {
   await recoverInterruptedChecks();
   if (state.batch.running) return getBatchProgress();
+  const ids = employeeIds ? [...new Set(employeeIds)] : undefined;
+  if (ids && !ids.length) throw new Error("Select at least one employee.");
   const employees = await db.employee.findMany({
+    where: ids ? { id: { in: ids } } : undefined,
     orderBy: { sourceRow: "asc" },
   });
+  if (ids && employees.length !== ids.length)
+    throw new Error("Some selected employees no longer exist.");
   if (!employees.length)
     throw new Error("Import worksheet four before verifying the roster.");
   state.batch = {

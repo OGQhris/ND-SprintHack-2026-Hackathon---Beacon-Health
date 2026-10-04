@@ -1,3 +1,4 @@
+import { seededExpiration } from "./demo";
 import type { Employee } from "@prisma/client";
 import { db } from "./db";
 import {
@@ -10,14 +11,19 @@ export function serializeEmployee(
   e: Employee,
   today = todayDate(),
 ): EmployeeRecord {
+  const demoDate = seededExpiration(e.sourceRow);
+  const expiration = demoDate || e.expirationDate;
   return {
     ...e,
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
     lastVerifiedAt: e.lastVerifiedAt?.toISOString() ?? null,
     lastAttemptAt: e.lastAttemptAt?.toISOString() ?? null,
-    expirationCategory: expirationCategory(e.expirationDate, today),
-    daysUntilExpiration: daysUntilExpiration(e.expirationDate, today),
+    expirationDate: expiration,
+    sourceExpirationDate: e.expirationDate,
+    demoExpiration: !!demoDate,
+    expirationCategory: expirationCategory(expiration, today),
+    daysUntilExpiration: daysUntilExpiration(expiration, today),
   };
 }
 export async function listEmployees() {

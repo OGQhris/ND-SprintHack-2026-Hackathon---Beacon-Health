@@ -562,3 +562,73 @@ test("verify-all is sequential, deduplicates running batches, and publishes trut
   assert.equal(calls.length, 4);
   assert.ok(progress.finishedAt);
 });
+
+test("selected verification checks only unique selected employees", async () => {
+  const calls: string[] = [];
+  const result = {
+    state: "NOT_FOUND" as const,
+    source: "Michigan MILARA" as const,
+    sourceUrl: MICHIGAN_URL,
+    checkedAt: new Date().toISOString(),
+    credential: null,
+    candidates: [],
+    rawFields: { fixture: true },
+    error: "No fixture results.",
+  };
+  const provider = {
+    verify: async (employee: { id?: string }) => {
+      calls.push(employee.id!);
+      return result;
+    },
+  };
+  const ids = (await db.employee.findMany({ orderBy: { sourceRow: "asc" } }))
+    .slice(0, 2)
+    .map((e) => e.id);
+  const progress = await startVerifyAll(provider, [...ids, ids[0]]);
+  assert.equal(progress.total, 2);
+  for (let i = 0; getBatchProgress().running && i < 100; i++)
+    await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(calls, ids);
+  assert.equal(getBatchProgress().completed, 2);
+  await assert.rejects(
+    () => startVerifyAll(provider, ["missing-fixture"]),
+    /no longer exist/,
+  );
+  await assert.rejects(() => startVerifyAll(provider, []), /at least one/);
+});
+
+test("demo expirations cover all alert windows and never replace source database dates", async () => {
+  const { seededExpiration, validDemoDate } = await import("../lib/demo");
+  const settings = {
+    enabled: true,
+    today: "2026-10-03",
+    seedDate: "2026-10-03",
+  };
+  assert.deepEqual(
+    [0, 1, 2, 3, 4].map((row) =>
+      expirationCategory(seededExpiration(row, settings), settings.today),
+    ),
+    [
+      "EXPIRED",
+      "EXPIRING_WITHIN_7_DAYS",
+      "EXPIRING_WITHIN_14_DAYS",
+      "EXPIRING_WITHIN_30_DAYS",
+      "ACTIVE",
+    ],
+  );
+  assert.equal(seededExpiration(1, { ...settings, enabled: false }), null);
+  assert.equal(
+    expirationCategory(seededExpiration(1, settings), "2026-10-10"),
+    "EXPIRED",
+  );
+  assert.equal(validDemoDate("2026-02-30"), false);
+  assert.equal(validDemoDate("2026-02-28"), true);
+  const employee = await db.employee.findFirstOrThrow();
+  const original = employee.expirationDate;
+  seededExpiration(employee.sourceRow, settings);
+  assert.equal(
+    (await db.employee.findUniqueOrThrow({ where: { id: employee.id } }))
+      .expirationDate,
+    original,
+  );
+});

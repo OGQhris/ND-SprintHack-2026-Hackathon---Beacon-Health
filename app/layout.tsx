@@ -1,3 +1,4 @@
+import { DashboardProvider } from "@/components/workspace/DashboardProvider";
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
 import "./globals.css";
@@ -18,7 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Shell>{children}</Shell>
+        <DashboardProvider>
+          <Shell>{children}</Shell>
+        </DashboardProvider>
       </body>
     </html>
   );

@@ -1,3 +1,4 @@
+import { getDemoSettings } from "./demo";
 export type ExpirationCategory =
   | "UNKNOWN"
   | "EXPIRED"
@@ -5,7 +6,10 @@ export type ExpirationCategory =
   | "EXPIRING_WITHIN_14_DAYS"
   | "EXPIRING_WITHIN_30_DAYS"
   | "ACTIVE";
-export function todayDate(now = new Date()) {
+export function todayDate(now?: Date) {
+  const demo = getDemoSettings();
+  if (!now && demo.enabled) return demo.today;
+  now ??= new Date();
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: process.env.APP_TIMEZONE || "America/Indiana/Indianapolis",
     year: "numeric",

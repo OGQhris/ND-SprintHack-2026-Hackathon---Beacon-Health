@@ -136,23 +136,23 @@ Screenshots from browser checks are saved locally in the ignored `debug/` direct
 
 ## API routes
 
-| Route                            | Behavior                                                                               |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `GET /api/dashboard`             | Employees, counts, managers, current date, key-configured boolean, and batch progress. |
-| `GET /api/employees`             | Roster with optional `q`, `manager`, `state`, and `attention=true` filters.            |
-| `GET /api/employees/:id`         | Employee details and up to 25 recent source audits.                                    |
-| `POST /api/employees/:id/verify` | One deterministic live lookup and audited database update.                             |
-| `POST /api/verify-all`           | Starts or returns the running sequential job.                                          |
-| `GET /api/verify-all`            | Current progress.                                                                      |
-| `GET /api/chat/session`          | Creates/resumes the browser's conversation and loads history.                          |
-| `POST /api/chat/session`         | Creates a fresh conversation.                                                          |
-| `POST /api/chat`                 | Validates a message and streams assistant/tool/text/completion/error events.           |
+| Route                            | Behavior                                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GET /api/dashboard`             | Employees, counts, managers, current date, key-configured boolean, and batch progress.                |
+| `GET /api/employees`             | Roster with optional `q`, `manager`, `state`, and `attention=true` filters.                           |
+| `GET /api/employees/:id`         | Employee details and up to 25 recent source audits.                                                   |
+| `POST /api/employees/:id/verify` | One deterministic live lookup and audited database update.                                            |
+| `POST /api/verify-all`           | Starts or returns the running sequential job; optional `employeeIds` limits it to selected employees. |
+| `GET /api/verify-all`            | Current progress.                                                                                     |
+| `GET /api/chat/session`          | Creates/resumes the browser's conversation and loads history.                                         |
+| `POST /api/chat/session`         | Creates a fresh conversation.                                                                         |
+| `POST /api/chat`                 | Validates a message and streams assistant/tool/text/completion/error events.                          |
 
 ## Practical limits
 
 This is a local hackathon workspace: no enterprise authentication, SSO, production notification delivery, or scheduled verification. The attention center implements visual 30/14/7-day follow-up. Batch progress is in memory and requires the server to keep running. Paginated state results are conservatively sent to human review rather than automatically selecting a license. The public source sometimes returns HTTP 502; such failures are shown honestly, retain historical results, and can be retried.
 
-Only worksheet four and Michigan RNs are supported. Re-import does not reconcile removals or arbitrary row moves. Chat uses the latest 40 messages per model request; older messages remain stored, but extremely long conversations may lose earlier context. Stopping a chat response can cancel generation; a credential action already started may still finish. There are no seeded fake expiration alerts.
+Only worksheet four and Michigan RNs are supported. Re-import does not reconcile removals or arbitrary row moves. Chat uses the latest 40 messages per model request; older messages remain stored, but extremely long conversations may lose earlier context. Stopping a chat response can cancel generation; a credential action already started may still finish. Demo mode overlays clearly labeled simulated expiration dates; the original source dates and audit history stay unchanged.
 
 Production dependency audit passed with zero reported vulnerabilities after compatible dependency fixes. The development lint toolchain still inherits the published `braces` stack-exhaustion advisory; no patched compatible version was available during this build. It does not ship in the production dependency set.
 
@@ -167,3 +167,15 @@ Roster-wide checks show only the compact progress banner, without a browser prev
 Playback controls let you pause, scrub, select an activity, or replay from the beginning. In employee details, expand a verification history entry and select **Replay this verification**. Older audits created before this feature have no recording. Each new audit stores a recording ID; JPEG frames and an atomic JSON manifest persist in the ignored `data/verification-runs/` directory, so replay survives server restarts. Back up that directory alongside the database. Recordings are step snapshots, not continuous video; the cursor is an animated overlay at the actual element coordinates. Reduced-motion settings disable animation.
 
 The app polls activity every 900 ms. This initial local version shares the existing single-process verification queue; production deployments would need shared job storage and access controls for recordings. No recording is exposed through an arbitrary filesystem path. Run `npm run test:viewer` with the dev server running to exercise a real lookup, live panel, replay, frame routes, mobile layout, and reduced-motion support. Set `TEST_BASE_URL` if the server uses another port.
+
+### Workspace and demo alerts
+
+The sidebar provides Dashboard, Employees, Alerts, and Assistant pages. A shared dashboard provider fetches workspace data once and polls every four seconds across page navigation. Employee search, manager/status filters, row selection, and **Verify selected** use the same roster and sequential verification service. Verification start, completion, and failure notifications appear as toasts.
+
+Alerts groups expired credentials, cumulative 7-, 14-, and 30-day renewal windows, and verification issues. Search and manager filters narrow each group; **Verify this group** queues only its displayed employees.
+
+Select **Enable demo data** on Dashboard, Employees, or Alerts to populate renewal windows predictably. Expirations are seeded relative to the saved seed date; moving the demo clock with the date input or +7/+30 controls changes alert categories without moving those seeded dates. **Reset clock** returns to the seed date, and **Use live dates** restores source expirations. DEMO labels distinguish simulated dates, employee details retain the actual source date, and the assistant receives the same demo context. Settings persist in ignored `data/demo-settings.json`; no employee source dates or audit records are overwritten.
+
+The Michigan scraper selects **Registered Nurse** before searching and falls back to labeled detail fields if stable source element IDs are unavailable. Exact RN profession matching still applies to parsed records.
+
+With the dev server running, `npm run test:workspace` checks alert windows, clock changes, source-date preservation, filters, selected batch requests, toasts, and mobile layout. Its batch response is a local fixture. `npm run test:scraper` checks RN filtering and fallback extraction against local HTML fixtures. `npm run test:viewer` exercises an actual public-source lookup.

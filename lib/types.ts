@@ -8,6 +8,8 @@ export type EmployeeRecord = Omit<
   updatedAt: string;
   lastVerifiedAt: string | null;
   lastAttemptAt: string | null;
+  sourceExpirationDate: string | null;
+  demoExpiration: boolean;
   expirationCategory: ExpirationCategory;
   daysUntilExpiration: number | null;
 };
@@ -42,4 +44,5 @@ export type DashboardData = {
   today: string;
   aiConfigured: boolean;
   managers: string[];
+  demo: { enabled: boolean; today: string; seedDate: string };
 };

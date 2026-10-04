@@ -130,6 +130,13 @@ export function EmployeeDetail({
                 )}
               </div>
             )}
+            {employee.demoExpiration && (
+              <div className="demo-detail-note">
+                Expiration alerts use a simulated demo date. Actual source
+                expiration: {formatDate(employee.sourceExpirationDate)}.
+                Verification history retains real source results.
+              </div>
+            )}
             <dl className="detail-grid">
               {[
                 ["Manager", employee.manager],

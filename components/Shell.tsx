@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   UsersRound,
   Sparkles,
+  Bell,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -17,6 +18,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const links = [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/employees", label: "Employee credentials", icon: UsersRound },
+    { href: "/alerts", label: "Alerts", icon: Bell },
     { href: "/assistant", label: "Credential assistant", icon: Sparkles },
   ];
   return (

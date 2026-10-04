@@ -77,12 +77,10 @@ export async function POST(request: Request) {
             orderBy: { createdAt: "desc" },
             take: 40,
           });
-          const history: ResponseInputItem[] = messages
-            .reverse()
-            .map((m) => ({
-              role: m.role === "user" ? "user" : "assistant",
-              content: m.content,
-            }));
+          const history: ResponseInputItem[] = messages.reverse().map((m) => ({
+            role: m.role === "user" ? "user" : "assistant",
+            content: m.content,
+          }));
           const content = await runResponseLoop({
             transport: sdkTransport(getOpenAI()),
             history,

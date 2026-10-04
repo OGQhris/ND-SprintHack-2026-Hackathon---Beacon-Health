@@ -1,4 +1,4 @@
-import { Dashboard } from "@/components/dashboard/Dashboard";
+import { EmployeesPage } from "@/components/employees/EmployeesPage";
 export default function Page() {
-  return <Dashboard rosterOnly />;
+  return <EmployeesPage />;
 }

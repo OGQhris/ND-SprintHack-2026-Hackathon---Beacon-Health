@@ -21,7 +21,9 @@
     "format": "prettier --write app components lib services scripts tests prisma.config.ts next.config.ts eslint.config.mjs postcss.config.mjs package.json tsconfig.json README.md",
     "test:live-ui": "node scripts/testLiveUi.mjs",
     "test:provider": "node --import tsx scripts/testProvider.mjs",
-    "test:viewer": "node scripts/testVerificationViewer.mjs"
+    "test:viewer": "node scripts/testVerificationViewer.mjs",
+    "test:workspace": "node scripts/testWorkspace.mjs",
+    "test:scraper": "node --import tsx scripts/testScraperFallback.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
