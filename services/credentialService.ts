@@ -14,12 +14,15 @@ const shared = globalThis as unknown as {
     pending: Set<string>;
     batch: BatchProgress;
     recovered: boolean;
+    /** A stop was asked for; kept outside `batch` so progress snapshots stay stable. */
+    stopRequested: boolean;
   };
 };
 const state = (shared.beaconVerification ??= {
   queue: Promise.resolve(),
   pending: new Set(),
   recovered: false,
+  stopRequested: false,
   batch: {
     running: false,
     completed: 0,
@@ -36,8 +39,16 @@ function enqueue<T>(work: () => Promise<T>): Promise<T> {
   state.queue = task.catch(() => {});
   return task;
 }
-export function getBatchProgress() {
-  return { ...state.batch };
+export function getBatchProgress(): BatchProgress {
+  return {
+    ...state.batch,
+    ...(state.stopRequested ? { stopRequested: true } : {}),
+  };
+}
+/** Asks a running roster check to stop after the employee currently being checked. */
+export function requestStopVerifyAll(): BatchProgress {
+  if (state.batch.running) state.stopRequested = true;
+  return getBatchProgress();
 }
 export async function recoverInterruptedChecks() {
   if (state.recovered) return;
@@ -177,6 +188,7 @@ export async function startVerifyAll(
     throw new Error("Some selected employees no longer exist.");
   if (!employees.length)
     throw new Error("Import worksheet four before verifying the roster.");
+  state.stopRequested = false;
   state.batch = {
     running: true,
     completed: 0,
@@ -190,6 +202,7 @@ export async function startVerifyAll(
   void enqueue(async () => {
     try {
       for (const employee of employees) {
+        if (state.stopRequested) break;
         state.batch.currentEmployee = `${employee.firstName} ${employee.lastName}`;
         try {
           const result = await performVerification(
@@ -219,6 +232,7 @@ export async function startVerifyAll(
         state.batch.completed++;
       }
     } finally {
+      state.stopRequested = false;
       state.batch.running = false;
       state.batch.currentEmployee = null;
       state.batch.finishedAt = new Date().toISOString();

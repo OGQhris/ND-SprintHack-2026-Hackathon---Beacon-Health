@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { getBatchProgress, startVerifyAll } from "@/services/credentialService";
+import {
+  getBatchProgress,
+  requestStopVerifyAll,
+  startVerifyAll,
+} from "@/services/credentialService";
 import { safeError, guardOrigin } from "@/lib/http";
 export const runtime = "nodejs";
 export async function GET() {
@@ -38,4 +42,10 @@ export async function POST(request: Request) {
   } catch (e) {
     return safeError(e);
   }
+}
+/** Stops a running roster check after the employee currently being checked finishes. */
+export async function DELETE(request: Request) {
+  const denied = guardOrigin(request);
+  if (denied) return denied;
+  return Response.json({ progress: requestStopVerifyAll() });
 }

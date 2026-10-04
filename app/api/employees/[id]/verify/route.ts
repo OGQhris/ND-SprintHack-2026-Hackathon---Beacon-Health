@@ -13,7 +13,16 @@ export async function POST(
     const { id } = await context.params;
     if (!(await db.employee.findUnique({ where: { id } })))
       return Response.json({ error: "Employee not found." }, { status: 404 });
-    return Response.json({ employee: await verifyEmployee(id) });
+    const employee = await verifyEmployee(id);
+    // The audit row this check wrote, so the client can highlight the matching history entry.
+    const audit = await db.verificationAudit
+      .findFirst({
+        where: { employeeId: id },
+        orderBy: { checkedAt: "desc" },
+        select: { id: true },
+      })
+      .catch(() => null);
+    return Response.json({ employee, auditId: audit?.id });
   } catch (e) {
     return safeError(
       e,

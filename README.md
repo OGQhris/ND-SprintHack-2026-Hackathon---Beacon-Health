@@ -24,7 +24,7 @@ PLAYWRIGHT_HEADLESS=true
 APP_TIMEZONE=America/Indiana/Indianapolis
 ```
 
-Leave `OPENAI_MODEL` blank to use the centralized default in `lib/openai.ts`. Choose another model supported by your account and the Responses API if desired. Restart the development server after changing AI configuration. The SDK and key stay on the server; the browser calls this application's `/api/chat` route. Without a key, credential verification and the dashboard still work, and the assistant shows setup guidance.
+Leave `OPENAI_MODEL` blank to use the centralized default in `lib/openai.ts`. Choose another model supported by your account and the Responses API if desired. Restart the development server after changing AI configuration. The SDK and key stay on the server; the browser calls this application's `/api/ask` route. Without a key, credential verification and the dashboard still work, and Ask Beacon answers from a built-in rule engine over the same data and says so.
 
 The supplied workbook has been copied to the ignored local `data/` directory in this workspace. For a fresh checkout, put your workbook there or import it with the explicit path below.
 
@@ -33,7 +33,7 @@ npm run setup
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000/dashboard**. The dedicated assistant is **http://127.0.0.1:3000/assistant**; the dashboard's **Ask assistant** button opens a compact version.
+Open **http://127.0.0.1:3000/dashboard**. The dedicated assistant is **http://127.0.0.1:3000/ask** (Ask Beacon); the old `/assistant` URL redirects there, and the **Ask Beacon** button in the top bar opens a docked version that stays open while you navigate.
 
 The development server binds to loopback. Keep it running during verification, especially during a sequential roster check.
 
@@ -62,27 +62,31 @@ Have the server running and your OpenAI key configured before beginning. Open th
 
 | Time      | Action                                                                                            | What it demonstrates                                                                          |
 | --------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 0:00–0:20 | Show the 17-person roster and credential coverage. Search `Kathryn`.                              | Fourth-sheet import, manager monitoring, honest unknown states.                               |
-| 0:20–0:40 | Click Kathryn's shield/Verify action; open her details when finished.                             | Deterministic live state lookup, Active RN status, expiration, license number, and timestamp. |
-| 0:40–0:50 | Expand verification history and show the source link.                                             | An auditable state-source result rather than a fabricated dashboard value.                    |
-| 0:50–1:15 | Open **Credential assistant**. Ask **Tell me about Kathryn Cell.** Then **When does she expire?** | Real database tool calling, streamed answers, and multi-turn context.                         |
+| 0:00–0:20 | Show the 17-person roster and the KPI row. Search `Kathryn`.                              | Fourth-sheet import, manager monitoring, honest unknown states.                               |
+| 0:20–0:40 | Open Kathryn, click **Verify now**, then **Watch the browser** while it runs.                             | Deterministic live state lookup, Active RN status, expiration, license number, and timestamp. |
+| 0:40–0:50 | Show Verification history, press **Replay**, and the **View on Michigan MILARA** link.                                             | An auditable state-source result rather than a fabricated dashboard value.                    |
+| 0:50–1:15 | Open **Ask Beacon**. Ask **Tell me about Kathryn Cell.** Then **When does she expire?** | Real database tool calling, streamed answers, and multi-turn context.                         |
 | 1:15–1:35 | Ask **Who expires in the next 30 days?** Then **Who needs attention?**                            | Date calculations and coverage-qualified monitoring answers.                                  |
 | 1:35–2:00 | Ask **Verify Kathryn Cell.** Show tool activity and the updated timestamp.                        | AI invokes an approved deterministic browser tool, then reports its actual result.            |
 
 For the tested live record, Michigan MILARA returned Registered Nurse, license **4704214941**, **Active**, issued **March 4, 1998**, expiring **March 4, 2028**, county **Kalamazoo**. These values are stored only after a successful lookup, never seeded from the request. The state site can update them. With just Kathryn checked, most of the roster still has unknown expiration dates; zero recorded alerts does not imply everyone is current.
 
-Optional: ask **Who reports to Christianna Davison?**, followed by **Do any of them expire soon?** To demonstrate bulk progress, ask **Can you start verification for everyone please?** or click **Verify all credentials**. That starts a sequential background job; it need not finish during a two-minute demo.
+Optional: ask **Who reports to Christianna Davison?**, followed by **Do any of them expire soon?** To demonstrate bulk progress, ask **Can you start verification for everyone please?** or select people on the dashboard and click **Verify selected** (or **Verify all on this page**). That starts a sequential background job; it need not finish during a two-minute demo.
 
 ## Implemented product
 
-- Calm dashboard, metrics, coverage ring, searchable roster, manager filter, attention categories, responsive layouts, and accessible employee-detail dialogs.
-- Employee detail includes source license status separately from calculated expiration category, license number, issue/expiration dates, county, manager, successful-check timestamp, most recent attempt, errors, workbook provenance, and audit history.
-- Dedicated assistant plus dashboard drawer, Markdown, streamed chunks, multi-turn history in SQLite, sticky composer, Enter/Shift+Enter behavior, stop action, suggested prompts, subtle activity shimmer, readable tool rows, and concise error states.
+- Front end ported from the team's hackathon app: shadcn/ui (radix-nova) with IBM Plex Sans, a dashboard KPI row with the 30/14/7-day runway, a searchable and filterable employee table that becomes a card list on phones, an employee page with the current credential, guidance and verification history, and alert tabs (All, Expired, 7, 14, 30 days, Verification issues) with resolve and reminder actions persisted in the `AlertAction` table.
+- Employee detail keeps the source license status separate from the calculated expiration status and shows the license number, issue and expiration dates, county, manager, last successful check, last attempt, the server's last error, and the full audit history with a replay for every recorded check.
+- Ask Beacon: a docked mini chat that survives navigation plus a full `/ask` page with previous chats, streaming the same tool-calling assistant over `POST /api/ask` with Markdown, visible tool steps, employee chips under each answer, a stop button, and suggested prompts. Threads live in the browser (localStorage) and the recent turns are sent with each question.
 - SQLite with Prisma migrations, validated fourth-sheet ExcelJS import, and a replaceable `CredentialProvider` interface.
 - Closed registry of ten strict JSON-schema and Zod-validated tools. No arbitrary SQL, shell, URLs, browser commands, deletes, or direct database editing are exposed to the model.
 - Real official OpenAI JavaScript SDK **Responses API** with streaming, repeated function-call execution, matching `function_call_output` items, all response output items preserved within the turn, and a bounded 12-round loop. No Assistants Threads/Runs or Chat Completions.
-- Per-browser HttpOnly session cookie, persisted conversation messages, same-origin write checks, and one active response per conversation.
+- Same-origin checks on every mutating route and one active response per conversation thread. The earlier cookie-session chat routes (`/api/chat`, `/api/chat/session`) remain for the integration tests, but the UI no longer uses them.
 - Sequential/low-concurrency verification, truthful roster progress, error screenshots under `debug/`, state-source provenance, and an audit record for each completed attempt.
+
+### Front end
+
+Routes live under `app/(app)/`: `/dashboard`, `/employees`, `/employees/[id]`, `/alerts` and `/ask` (`/reports` and `/assistant` redirect). `app/(app)/layout.tsx` calls `loadWorkspace()` once per request and hands the snapshot to `CredentialStoreProvider`, which polls `GET /api/workspace` every 4 seconds (and immediately after a verification, a demo-clock change, or an assistant verification) and announces server-side changes as toasts. `lib/data/beacon-adapter.ts` is the single mapping from the Prisma records (`EmployeeRecord`, `VerificationAudit`) to the front end's view model (`Employee`, `Credential`, `VerificationRecord`, `VerificationOutcome`): backend `UNVERIFIED` rows surface as **Not yet verified**, `NEEDS_REVIEW` and `NOT_FOUND` as needs review with a reason, and `ERROR` as verification failed. The top bar holds the **Demo clock** control, and a roster-check banner appears on every page while a sequential batch runs.
 
 ### Approved assistant tools
 
@@ -109,7 +113,7 @@ npm test
 npm run build
 ```
 
-`npm test` uses a separate temporary SQLite database. It covers expiration boundaries/timezone, fourth-sheet-only import/spelling/row validation, database searches, name ambiguity, eight read tools, strict tool validation, mutation gates, source parsing, not-found/review handling, complete multi-round Responses orchestration, streaming deltas, conversation context, interrupted streams, audited persistence, failed recheck retention, backend routes, and sequential batch progress.
+`npm test` uses a separate temporary SQLite database (on Node 22, where `node:sqlite` is still behind a flag, run `node --experimental-sqlite --import tsx --test tests/*.test.ts` instead). It covers expiration boundaries/timezone, fourth-sheet-only import/spelling/row validation, database searches, name ambiguity, eight read tools, strict tool validation, mutation gates, source parsing, not-found/review handling, complete multi-round Responses orchestration, streaming deltas, conversation context, interrupted streams, audited persistence, failed recheck retention, backend routes, and sequential batch progress.
 
 With the app running:
 
@@ -121,6 +125,15 @@ npm run ai:smoke -- --verify
 npm run test:live-ui
 npm run test:provider
 ```
+
+`test:ui` drives the running app in headless Chromium: the workspace payload, dashboard, employee detail, employees, alerts, Ask Beacon, the legacy redirects, a demo clock round trip (restored afterwards), the phone layout and one assistant question (`SKIP_AI=1` skips it). It never starts a verification. It targets `TEST_BASE_URL` (default `http://127.0.0.1:3000`); to run it beside your own `npm run dev`, start a second server in its own build directory, since Next.js allows one dev server per `.next`:
+
+```bash
+NEXT_DIST_DIR=.next/ui-check npx next dev --hostname 127.0.0.1 --port 3105
+TEST_BASE_URL=http://127.0.0.1:3105 npm run test:ui
+```
+
+`test:workspace`, `test:live-ui`, `test:viewer`, `scripts/testBatchPreview.mjs` and `tests/httpIntegration.mjs` still target the previous front end's pages and selectors and have not been updated for the ported UI.
 
 `ai:smoke` uses your actual OpenAI key, requires database tools for each credential question, and prints streamed chunks. `--verify` additionally performs a live AI-triggered Kathryn lookup and requires a successful source result. `--only-verify` tests that action alone. `test:live-ui` checks the dashboard Verify button, real browser chat, follow-up context, persistence after reload, and AI-triggered verification. These live checks use OpenAI credits and contact the public state website.
 
@@ -141,18 +154,21 @@ Screenshots from browser checks are saved locally in the ignored `debug/` direct
 | `GET /api/dashboard`             | Employees, counts, managers, current date, key-configured boolean, and batch progress.                |
 | `GET /api/employees`             | Roster with optional `q`, `manager`, `state`, and `attention=true` filters.                           |
 | `GET /api/employees/:id`         | Employee details and up to 25 recent source audits.                                                   |
-| `POST /api/employees/:id/verify` | One deterministic live lookup and audited database update.                                            |
+| `POST /api/employees/:id/verify` | One deterministic live lookup and audited database update; responds with `{ employee, auditId }`.     |
 | `POST /api/verify-all`           | Starts or returns the running sequential job; optional `employeeIds` limits it to selected employees. |
 | `GET /api/verify-all`            | Current progress.                                                                                     |
+| `DELETE /api/verify-all`         | Stops a running roster check after the current employee finishes.                                     |
 | `GET /api/chat/session`          | Creates/resumes the browser's conversation and loads history.                                         |
 | `POST /api/chat/session`         | Creates a fresh conversation.                                                                         |
 | `POST /api/chat`                 | Validates a message and streams assistant/tool/text/completion/error events.                          |
+| `GET /api/workspace`             | The front end's whole snapshot: employees, credentials, history, alert actions, batch, demo clock.     |
+| `POST /api/ask`                  | Streams the assistant (SSE) for `{ question, history, threadId }`; a JSON rule-based answer without a key. |
 
 ## Practical limits
 
 This is a local hackathon workspace: no enterprise authentication, SSO, production notification delivery, or scheduled verification. The attention center implements visual 30/14/7-day follow-up. Batch progress is in memory and requires the server to keep running. Paginated state results are conservatively sent to human review rather than automatically selecting a license. The public source sometimes returns HTTP 502; such failures are shown honestly, retain historical results, and can be retried.
 
-Only worksheet four and Michigan RNs are supported. Re-import does not reconcile removals or arbitrary row moves. Chat uses the latest 40 messages per model request; older messages remain stored, but extremely long conversations may lose earlier context. Stopping a chat response can cancel generation; a credential action already started may still finish. Demo mode overlays clearly labeled simulated expiration dates; the original source dates and audit history stay unchanged.
+Only worksheet four and Michigan RNs are supported. Re-import does not reconcile removals or arbitrary row moves. Ask Beacon sends the latest 12 turns of the open thread with each question; threads are stored in the browser, so clearing site data removes them. Stopping a chat response can cancel generation; a credential action already started may still finish. Demo mode overlays clearly labeled simulated expiration dates; the original source dates and audit history stay unchanged.
 
 Production dependency audit passed with zero reported vulnerabilities after compatible dependency fixes. The development lint toolchain still inherits the published `braces` stack-exhaustion advisory; no patched compatible version was available during this build. It does not ship in the production dependency set.
 
@@ -160,22 +176,22 @@ Official API references used for implementation: [Responses function calling](ht
 
 ### Watch a verification
 
-Click **Verify** on an employee or ask the assistant to verify someone. For individual checks, a browser activity panel opens automatically with real Michigan MILARA screenshots, recorded target highlights, animated cursor movement, action captions, and the saved result. Closing the panel lets the check continue. Saved recordings can be reopened from employee verification history.
+Click **Verify now** on an employee page (or in a table row's menu), or ask the assistant to verify someone. While the check runs, **Watch the browser** opens the viewer with real Michigan MILARA screenshots, recorded target highlights, cursor movement, action captions, and the saved result; it is opt-in rather than automatic, and closing it lets the check continue. Every recorded check gets a **Replay** button in Verification history.
 
-Roster-wide checks show only the compact progress banner, without a browser preview or automatic viewer. The browser viewer remains available for individual employee checks.
+Roster-wide checks (**Verify selected**, **Verify all on this page**, or the assistant's bulk tool) run on the server and show a progress banner on every page with a **Stop after this one** button; their recordings are replayable from history too.
 
-Playback controls let you pause, scrub, select an activity, or replay from the beginning. In employee details, expand a verification history entry and select **Replay this verification**. Older audits created before this feature have no recording. Each new audit stores a recording ID; JPEG frames and an atomic JSON manifest persist in the ignored `data/verification-runs/` directory, so replay survives server restarts. Back up that directory alongside the database. Recordings are step snapshots, not continuous video; the cursor is an animated overlay at the actual element coordinates. Reduced-motion settings disable animation.
+Playback controls let you pause, scrub, select an activity, or replay from the beginning. In employee details, press the replay icon on a Verification history row. Older audits created before this feature have no recording. Each new audit stores a recording ID; JPEG frames and an atomic JSON manifest persist in the ignored `data/verification-runs/` directory, so replay survives server restarts. Back up that directory alongside the database. Recordings are step snapshots, not continuous video; the cursor is an animated overlay at the actual element coordinates. Reduced-motion settings disable animation.
 
-The app polls activity every 900 ms. This initial local version shares the existing single-process verification queue; production deployments would need shared job storage and access controls for recordings. No recording is exposed through an arbitrary filesystem path. Run `npm run test:viewer` with the dev server running to exercise a real lookup, live panel, replay, frame routes, mobile layout, and reduced-motion support. Set `TEST_BASE_URL` if the server uses another port.
+The app polls activity every 900 ms. This initial local version shares the existing single-process verification queue; production deployments would need shared job storage and access controls for recordings. No recording is exposed through an arbitrary filesystem path. The previous `npm run test:viewer` script targets the old panel and has not been updated.
 
 ### Workspace and demo alerts
 
-The sidebar provides Dashboard, Employees, Alerts, and Assistant pages. A shared dashboard provider fetches workspace data once and polls every four seconds across page navigation. Employee search, manager/status filters, row selection, and **Verify selected** use the same roster and sequential verification service. Verification start, completion, and failure notifications appear as toasts.
+The sidebar provides Dashboard, Employees, Alerts, and Ask Beacon. The credential store loads one server snapshot and polls `/api/workspace` every four seconds across page navigation, so checks started by the assistant or another tab appear without a reload. Search (name, manager, license number), group, source and status filters, row selection, **Verify selected** and **Verify all on this page** use the same roster and sequential verification service. Verification start, completion, and failure notifications appear as toasts.
 
-Alerts groups expired credentials, cumulative 7-, 14-, and 30-day renewal windows, and verification issues. Search and manager filters narrow each group; **Verify this group** queues only its displayed employees.
+Alert tabs cover expired credentials, the 7-, 14-, and 30-day renewal windows, and verification issues (including never-verified people, labelled **Not yet verified**). Each card offers **Verify now** or **Reverify**, **Mark resolved** (with undo), **Reopen**, and, for renewal warnings, **Send reminder**; resolve and reminder actions are stored in the `AlertAction` table and survive reloads.
 
-Select **Enable demo data** on Dashboard, Employees, or Alerts to populate renewal windows predictably. Expirations are seeded relative to the saved seed date; moving the demo clock with the date input or +7/+30 controls changes alert categories without moving those seeded dates. **Reset clock** returns to the seed date, and **Use live dates** restores source expirations. DEMO labels distinguish simulated dates, employee details retain the actual source date, and the assistant receives the same demo context. Settings persist in ignored `data/demo-settings.json`; no employee source dates or audit records are overwritten.
+Open the **Demo clock** in the top bar and choose **Enable demo data** to populate renewal windows predictably. Expirations are seeded relative to the saved seed date; moving the clock with the date input or **+7 days** and **+30 days** changes alert categories without moving those seeded dates. **Reset clock** returns to the seed date, and **Use live dates** restores source expirations. An amber **Demo clock on** chip and **Demo** tags next to dates distinguish simulated values, the employee page shows the source's own expiration, and the assistant receives the same demo context. Settings persist in ignored `data/demo-settings.json`; no employee source dates or audit records are overwritten.
 
 The Michigan scraper selects **Registered Nurse** before searching and falls back to labeled detail fields if stable source element IDs are unavailable. Exact RN profession matching still applies to parsed records.
 
-With the dev server running, `npm run test:workspace` checks alert windows, clock changes, source-date preservation, filters, selected batch requests, toasts, and mobile layout. Its batch response is a local fixture. `npm run test:scraper` checks RN filtering and fallback extraction against local HTML fixtures. `npm run test:viewer` exercises an actual public-source lookup.
+With the dev server running, `npm run test:ui` covers the ported UI (see Validation). `npm run test:scraper` checks RN filtering and fallback extraction against local HTML fixtures. `npm run test:workspace` and `npm run test:viewer` still target the previous UI.

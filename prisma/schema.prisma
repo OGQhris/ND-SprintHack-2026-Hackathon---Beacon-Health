@@ -59,3 +59,14 @@ model ChatMessage {
   content String
   createdAt DateTime @default(now())
 }
+model AlertAction {
+  id String @id
+  credentialId String
+  employeeId String
+  kind String
+  status String @default("open")
+  resolvedAt DateTime?
+  reminderSentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

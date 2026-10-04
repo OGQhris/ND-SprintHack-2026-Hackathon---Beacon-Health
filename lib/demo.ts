@@ -1,11 +1,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { mkdir, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
-export type DemoSettings = {
-  enabled: boolean;
-  today: string;
-  seedDate: string;
-};
+import type { DemoSettings } from "./types";
+export type { DemoSettings };
 const file = path.join(process.cwd(), "data", "demo-settings.json");
 const realToday = () =>
   new Intl.DateTimeFormat("en-CA", {

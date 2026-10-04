@@ -8,12 +8,14 @@ import type {
 import { executeTool, toolDefinitions, toolLabel } from "./tools";
 import { OPENAI_MODEL } from "@/lib/openai";
 import { systemPrompt } from "./systemPrompt";
+import type { ChatRow } from "@/lib/assistant/types";
 export type ChatEvent = {
   type:
     | "assistant_start"
     | "tool_call_start"
     | "tool_call_complete"
     | "text_delta"
+    | "answer"
     | "assistant_complete"
     | "error"
     | "heartbeat";
@@ -23,7 +25,18 @@ export type ChatEvent = {
   callId?: string;
   ok?: boolean;
   message?: string;
+  /** "answer" frames: employee chips and the deep link to show under the finished reply. */
+  rows?: ChatRow[];
+  href?: string;
+  model?: string;
+  mode?: "llm" | "rules";
 };
+/** Observes each tool result as it is produced (the /api/ask route collects employee chips from them). */
+export type ToolResultListener = (call: {
+  name: string;
+  arguments: string;
+  result: unknown;
+}) => void;
 // Injectable transport keeps orchestration testable without replacing actual SDK function calls.
 export type ResponseTransport = (
   params: ResponseCreateParamsStreaming,
@@ -38,12 +51,14 @@ export async function runResponseLoop({
   latestUserMessage,
   emit,
   signal,
+  onToolResult,
 }: {
   transport: ResponseTransport;
   history: ResponseInputItem[];
   latestUserMessage: string;
   emit: (event: ChatEvent) => void;
   signal?: AbortSignal;
+  onToolResult?: ToolResultListener;
 }) {
   const input = [...history];
   let text = "";
@@ -115,6 +130,11 @@ export async function runResponseLoop({
       const result = await executeTool(call.name, call.arguments, {
         latestUserMessage,
       });
+      try {
+        onToolResult?.({ name: call.name, arguments: call.arguments, result });
+      } catch (error) {
+        console.error("[AI] Tool result listener failed", error);
+      }
       const failed =
         typeof result === "object" &&
         result !== null &&

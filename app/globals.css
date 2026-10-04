@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Beacon world */
+  --color-paper: var(--paper);
+  --color-folder: var(--folder);
+  --color-folder-inset: var(--folder-inset);
+  --color-folder-hover: var(--folder-hover);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-ghost: var(--ink-ghost);
+  --color-seal: var(--seal);
+  --color-seal-strong: var(--seal-strong);
+  --color-seal-tint: var(--seal-tint);
+  --color-rule: var(--rule);
+
+  /* Status system: StatusBadge and ExpiryRunway are the only consumers */
+  --color-status-active-bg: var(--status-active-bg);
+  --color-status-active-fg: var(--status-active-fg);
+  --color-status-active-dot: var(--status-active-dot);
+  --color-status-expiring-bg: var(--status-expiring-bg);
+  --color-status-expiring-strong-bg: var(--status-expiring-strong-bg);
+  --color-status-expiring-fg: var(--status-expiring-fg);
+  --color-status-expiring-dot: var(--status-expiring-dot);
+  --color-status-expired-bg: var(--status-expired-bg);
+  --color-status-expired-fg: var(--status-expired-fg);
+  --color-status-expired-dot: var(--status-expired-dot);
+  --color-status-review-bg: var(--status-review-bg);
+  --color-status-review-fg: var(--status-review-fg);
+  --color-status-review-dot: var(--status-review-dot);
+  --color-status-failed-bg: var(--status-failed-bg);
+  --color-status-failed-fg: var(--status-failed-fg);
+  --color-status-failed-dot: var(--status-failed-dot);
+
+  --shadow-float: var(--shadow-float);
+}
+
+:root {
+  /* The physical world of this product: paper records in a folder, stamped with a seal. */
+  --paper: #ffffff;
+  --folder: #f4f8fb;
+  --folder-inset: #eaf1f7;
+  --folder-hover: #f0f5f9;
+  --ink: #0c4a6e;
+  --ink-soft: #475569;
+  --ink-faint: #64748b;
+  --ink-ghost: #94a3b8;
+  --seal: #0284c7;
+  --seal-strong: #0369a1;
+  --seal-tint: #e0f2fe;
+  --rule: #dce6ee;
+
+  --status-active-bg: #f0fdf4;
+  --status-active-fg: #166534;
+  --status-active-dot: #16a34a;
+  --status-expiring-bg: #fffbeb;
+  --status-expiring-strong-bg: #fef3c7;
+  --status-expiring-fg: #92400e;
+  --status-expiring-dot: #d97706;
+  --status-expired-bg: #fef2f2;
+  --status-expired-fg: #991b1b;
+  --status-expired-dot: #dc2626;
+  --status-review-bg: #f1f5f9;
+  --status-review-fg: #334155;
+  --status-review-dot: #64748b;
+  --status-failed-bg: #fff1f2;
+  --status-failed-fg: #9f1239;
+  --status-failed-dot: #e11d48;
+
+  --shadow-float:
+    0 0 0 1px rgba(12, 74, 110, 0.06), 0 1px 2px -1px rgba(12, 74, 110, 0.06),
+    0 2px 4px rgba(12, 74, 110, 0.04);
+
+  /* shadcn semantic tokens mapped onto the Beacon world */
+  --background: var(--folder);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--seal);
+  --primary-foreground: #ffffff;
+  --secondary: var(--folder-inset);
+  --secondary-foreground: var(--ink);
+  --muted: var(--folder-inset);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--folder-hover);
+  --accent-foreground: var(--ink);
+  --destructive: #dc2626;
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--seal);
+  --chart-1: var(--seal);
+  --chart-2: var(--status-active-dot);
+  --chart-3: var(--status-expiring-dot);
+  --chart-4: var(--status-expired-dot);
+  --chart-5: var(--ink-faint);
+  --radius: 0.5rem;
+  --sidebar: var(--folder);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--seal);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--paper);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--seal);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: var(--seal-tint);
+  }
+  /* Tailwind v4 resets buttons to the arrow cursor; anything clickable should read as clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not(:disabled),
+  [role="menuitem"],
+  [role="option"],
+  [role="checkbox"]:not(:disabled),
+  summary,
+  a[href] {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .numeric {
+    font-variant-numeric: tabular-nums;
+  }
+  .float-shadow {
+    box-shadow: var(--shadow-float);
+  }
+  .flash-seal {
+    animation: flash-seal 600ms ease-out;
+  }
+  @keyframes flash-seal {
+    0% {
+      background-color: var(--seal-tint);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flash-seal {
+      animation: none;
+    }
+  }
+}
