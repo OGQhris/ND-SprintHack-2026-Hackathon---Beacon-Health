@@ -1,7 +1,7 @@
 import { db } from "../lib/db";
-import { seedSampleEmployees } from "../lib/sample-employees";
+import { resetDemoEmployees } from "../lib/sample-employees";
 try {
-  const employees = await seedSampleEmployees();
+  const employees = await resetDemoEmployees();
   console.log(
     "Added sample employees:",
     employees

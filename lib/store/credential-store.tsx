@@ -1,7 +1,18 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useReducer, useRef, type ReactNode } from "react";
-import { useWorkspacePolling, type WorkspaceSync } from "@/lib/store/use-workspace-polling";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from "react";
+import {
+  useWorkspacePolling,
+  type WorkspaceSync,
+} from "@/lib/store/use-workspace-polling";
 import type {
   Credential,
   StoreState,
@@ -21,11 +32,22 @@ export type StoreAction =
   | { type: "ALERT_REOPENED"; alertId: string }
   | { type: "REMINDER_SENT"; alertId: string; at: string }
   /** Replaces the server-owned slices with a fresh snapshot; local alert actions survive unless the snapshot is newer. */
-  | { type: "HYDRATE"; workspace: WorkspacePayload; includeAlertActions: boolean };
+  | {
+      type: "HYDRATE";
+      workspace: WorkspacePayload;
+      includeAlertActions: boolean;
+    };
 
-const ALERT_MUTATIONS = new Set<StoreAction["type"]>(["ALERT_RESOLVED", "ALERT_REOPENED", "REMINDER_SENT"]);
+const ALERT_MUTATIONS = new Set<StoreAction["type"]>([
+  "ALERT_RESOLVED",
+  "ALERT_REOPENED",
+  "REMINDER_SENT",
+]);
 
-function applyOutcome(credential: Credential, outcome: VerificationOutcome): Credential {
+function applyOutcome(
+  credential: Credential,
+  outcome: VerificationOutcome,
+): Credential {
   switch (outcome.kind) {
     case "verified": {
       const c = outcome.credential;
@@ -34,6 +56,8 @@ function applyOutcome(credential: Credential, outcome: VerificationOutcome): Cre
         credentialType: c.credentialType || credential.credentialType,
         credentialNumber: c.credentialNumber ?? credential.credentialNumber,
         expirationDate: c.expirationDate ?? credential.expirationDate,
+        demoExpiration: undefined,
+        sourceExpirationDate: undefined,
         source: c.source,
         lastChecked: c.lastChecked,
         lastVerifiedAt: c.lastChecked,
@@ -63,7 +87,8 @@ function applyOutcome(credential: Credential, outcome: VerificationOutcome): Cre
         verificationState: "verification_failed",
         lastReason: outcome.reason,
         lastError: outcome.detail,
-        inFlight: outcome.reason === "in_progress" ? credential.inFlight : undefined,
+        inFlight:
+          outcome.reason === "in_progress" ? credential.inFlight : undefined,
       };
   }
 }
@@ -80,7 +105,11 @@ function initState(workspace: WorkspacePayload): StoreState {
   };
 }
 
-function hydrate(state: StoreState, workspace: WorkspacePayload, includeAlertActions: boolean): StoreState {
+function hydrate(
+  state: StoreState,
+  workspace: WorkspacePayload,
+  includeAlertActions: boolean,
+): StoreState {
   const { seed } = workspace;
   const next: StoreState = {
     ...state,
@@ -107,7 +136,9 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   switch (action.type) {
     case "VERIFICATION_COMPLETED": {
       const records = state.records.some((r) => r.id === action.record.id)
-        ? state.records.map((r) => (r.id === action.record.id ? action.record : r))
+        ? state.records.map((r) =>
+            r.id === action.record.id ? action.record : r,
+          )
         : [action.record, ...state.records];
       return {
         ...state,
@@ -120,17 +151,31 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
     case "ALERT_RESOLVED":
       return state.resolvedAlertIds.includes(action.alertId)
         ? state
-        : { ...state, resolvedAlertIds: [...state.resolvedAlertIds, action.alertId] };
+        : {
+            ...state,
+            resolvedAlertIds: [...state.resolvedAlertIds, action.alertId],
+          };
     case "ALERT_REOPENED":
-      return { ...state, resolvedAlertIds: state.resolvedAlertIds.filter((id) => id !== action.alertId) };
+      return {
+        ...state,
+        resolvedAlertIds: state.resolvedAlertIds.filter(
+          (id) => id !== action.alertId,
+        ),
+      };
     case "REMINDER_SENT":
-      return { ...state, reminders: { ...state.reminders, [action.alertId]: action.at } };
+      return {
+        ...state,
+        reminders: { ...state.reminders, [action.alertId]: action.at },
+      };
     case "HYDRATE":
       return hydrate(state, action.workspace, action.includeAlertActions);
   }
 }
 
-type StoreValue = { state: StoreState; dispatch: (action: StoreAction) => void };
+type StoreValue = {
+  state: StoreState;
+  dispatch: (action: StoreAction) => void;
+};
 
 const StoreContext = createContext<StoreValue | null>(null);
 const SyncContext = createContext<WorkspaceSync | null>(null);
@@ -140,12 +185,19 @@ const SyncContext = createContext<WorkspaceSync | null>(null);
  * snapshot the (app) layout loaded on the server; afterwards the provider polls /api/workspace
  * and announces what changed (roster checks, verifications finished elsewhere) with toasts.
  */
-export function CredentialStoreProvider({ workspace, children }: { workspace: WorkspacePayload; children: ReactNode }) {
+export function CredentialStoreProvider({
+  workspace,
+  children,
+}: {
+  workspace: WorkspacePayload;
+  children: ReactNode;
+}) {
   const [state, rawDispatch] = useReducer(reducer, workspace, initState);
   const lastAlertMutationAt = useRef<string | null>(null);
 
   const dispatch = useCallback((action: StoreAction) => {
-    if (ALERT_MUTATIONS.has(action.type)) lastAlertMutationAt.current = new Date().toISOString();
+    if (ALERT_MUTATIONS.has(action.type))
+      lastAlertMutationAt.current = new Date().toISOString();
     rawDispatch(action);
   }, []);
 
@@ -161,7 +213,10 @@ export function CredentialStoreProvider({ workspace, children }: { workspace: Wo
 
 export function useCredentialStore(): StoreValue {
   const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useCredentialStore must be used inside CredentialStoreProvider");
+  if (!ctx)
+    throw new Error(
+      "useCredentialStore must be used inside CredentialStoreProvider",
+    );
   return ctx;
 }
 
@@ -172,6 +227,9 @@ export function useStoreState(): StoreState {
 /** Manual refresh plus the health of the background sync, for banners and "last updated" labels. */
 export function useWorkspaceSync(): WorkspaceSync {
   const ctx = useContext(SyncContext);
-  if (!ctx) throw new Error("useWorkspaceSync must be used inside CredentialStoreProvider");
+  if (!ctx)
+    throw new Error(
+      "useWorkspaceSync must be used inside CredentialStoreProvider",
+    );
   return ctx;
 }

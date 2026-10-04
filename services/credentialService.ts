@@ -96,6 +96,7 @@ export async function persistVerification(
               credentialStatus: credential.status,
               issueDate: credential.issueDate,
               expirationDate: credential.expirationDate,
+              demoExpirationDate: null,
               county: credential.county,
               sourceUrl: credential.sourceUrl,
               lastVerifiedAt: new Date(result.checkedAt),
@@ -113,7 +114,8 @@ async function performVerification(
 ) {
   const employee = await db.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found.");
-  if (employee.sourceSheet === "Sample employees") return serializeEmployee(employee);
+  if (employee.sourceSheet === "Sample employees")
+    return serializeEmployee(employee);
   console.log(
     "[Credential Verification] Starting",
     employee.firstName,

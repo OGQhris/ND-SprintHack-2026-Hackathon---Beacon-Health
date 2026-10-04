@@ -26,6 +26,10 @@ export function ProfileMenu() {
       if (result.samplesAdded) requestWorkspaceRefresh();
       if (!response.ok)
         throw new Error(result.error || "Could not start the demo.");
+      toast.success("Demo reset", {
+        description:
+          "Kathryn: 5 days · Alexandria: 6 days · Taylor: 7 days. Sample techs added.",
+      });
     } catch (error) {
       toast.error("Demo notification failed", {
         description:

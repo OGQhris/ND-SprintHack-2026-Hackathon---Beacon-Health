@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { seedSampleEmployees } from "@/lib/sample-employees";
+import { resetDemoEmployees } from "@/lib/sample-employees";
 import { guardOrigin, safeError } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -12,15 +12,6 @@ export async function POST(request: Request) {
   if (blocked) return blocked;
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const recipient = process.env.RESEND_TEST_EMAIL_TO?.trim();
-  if (!apiKey || !recipient || !z.email().safeParse(recipient).success) {
-    return Response.json(
-      {
-        error:
-          "Set RESEND_API_KEY and RESEND_TEST_EMAIL_TO to your Resend account email in .env.local.",
-      },
-      { status: 503 },
-    );
-  }
   if (shared.beaconDemoStarting) {
     return Response.json(
       { error: "The demo is already starting. Please wait." },
@@ -29,11 +20,20 @@ export async function POST(request: Request) {
   }
   shared.beaconDemoStarting = true;
   try {
-    const employees = await seedSampleEmployees();
+    const employees = await resetDemoEmployees();
     const expirationDate = employees[0].expirationDate!;
+    if (!apiKey || !recipient || !z.email().safeParse(recipient).success) {
+      return Response.json({
+        samplesAdded: true,
+        expirationDate,
+        emailSkipped: true,
+      });
+    }
 
     // Keep the delay on the server so navigation doesn't cancel the demo email.
-    await new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, sendAfter - Date.now())));
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.max(0, sendAfter - Date.now())),
+    );
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",

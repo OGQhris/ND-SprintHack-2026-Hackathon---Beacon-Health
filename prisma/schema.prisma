@@ -18,6 +18,7 @@ model Employee {
   credentialStatus String?
   issueDate String?
   expirationDate String?
+  demoExpirationDate String?
   county String?
   verificationState String @default("UNVERIFIED")
   lastVerifiedAt DateTime?

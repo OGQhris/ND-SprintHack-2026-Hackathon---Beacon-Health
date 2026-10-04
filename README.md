@@ -39,9 +39,9 @@ The development server binds to loopback. Keep it running during verification, e
 
 ### Sample employees and notification demo
 
-Four fictional employees are stored alongside the imported roster and labeled **Sample**: Jamie Morgan (30 days), Alex Rivera (14 days), Taylor Brooks (17 days), and Casey Reed (expired three days ago). Their dates are set relative to the actual local date when seeded, then count down normally. There is no demo clock or date overlay on real employees. `npm run setup` adds these records; `npm run demo:seed` resets just their sample dates.
+Eight fictional employees are stored alongside the imported roster and labeled **Sample**: Jamie Morgan (30 days), Alex Rivera (14 days), Taylor Brooks (7 days), Casey Reed (expired three days ago), ultrasound techs Sam Patel (30 days) and Riley Chen (14 days), and radiology techs Jordan Lee (30 days) and Morgan Davis (14 days). Their dates are set relative to the actual local date when seeded, then count down normally. `npm run setup` adds these records. `npm run demo:seed` also resets demo expiration overlays for real employees Kathryn Cell (5 days) and Alexandria Truax (6 days). Their source dates and audit history stay intact; a successful live verification clears the overlay and displays the actual source date. A failed check retains the labeled demo date.
 
-Set `RESEND_API_KEY` and `RESEND_TEST_EMAIL_TO` in `.env.local` to your Resend account credentials. **BM → Start demo** resets the four sample dates and sends **Jamie Morgan expires in 30 days!** through `onboarding@resend.dev`. The message identifies Jamie as fictional. The send uses a 15-second timeout; inbox arrival depends on your mail provider.
+**BM → Start demo** resets all eight sample dates, Kathryn and Alexandria's demo dates, and their alert actions. This reset works without email configuration. Set `RESEND_API_KEY` and `RESEND_TEST_EMAIL_TO` in `.env.local` to also send **Jamie Morgan expires in 30 days!** through `onboarding@resend.dev` after 30 seconds. The message identifies Jamie as fictional. The send uses a 15-second timeout; inbox arrival depends on your mail provider. The new sample techs do not have live ARDMS or ARRT verification connectors.
 
 ### Import from the original file
 

@@ -11,7 +11,7 @@ export function serializeEmployee(
   e: Employee,
   today = todayDate(),
 ): EmployeeRecord {
-  const expiration = e.expirationDate;
+  const expiration = e.demoExpirationDate ?? e.expirationDate;
   return {
     ...e,
     createdAt: e.createdAt.toISOString(),
@@ -20,7 +20,7 @@ export function serializeEmployee(
     lastAttemptAt: e.lastAttemptAt?.toISOString() ?? null,
     expirationDate: expiration,
     sourceExpirationDate: e.expirationDate,
-    demoExpiration: false,
+    demoExpiration: !!e.demoExpirationDate,
     isSample: e.sourceSheet === SAMPLE_SHEET,
     expirationCategory: expirationCategory(expiration, today),
     daysUntilExpiration: daysUntilExpiration(expiration, today),

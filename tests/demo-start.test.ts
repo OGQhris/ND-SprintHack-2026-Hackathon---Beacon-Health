@@ -16,32 +16,80 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
       "utf8",
     ),
   );
+  sql.exec(
+    await readFile(
+      "prisma/migrations/20261004030000_alert_actions/migration.sql",
+      "utf8",
+    ),
+  );
+  sql.exec(
+    await readFile(
+      "prisma/migrations/20261004040000_demo_expirations/migration.sql",
+      "utf8",
+    ),
+  );
   sql.close();
   const { db } = await import("../lib/db");
   const { POST } = await import("../app/api/demo/start/route");
   const { serializeEmployee } = await import("../lib/employees");
   const { todayDate, daysUntilExpiration } = await import("../lib/expiration");
+  const { toSeedEmployee, toSeedCredential } =
+    await import("../lib/data/beacon-adapter");
+  const { persistVerification } = await import("../services/credentialService");
   const originalFetch = globalThis.fetch;
   const originalTimeout = globalThis.setTimeout;
   let releaseDelay: () => void = () => {};
   let delayObserved: () => void = () => {};
-  const waiting = new Promise<void>((resolve) => { delayObserved = resolve; });
-  let autoAdvance = false;
-  t.mock.method(globalThis, "setTimeout", (callback: () => void, delay: number, ...args: unknown[]) => {
-    if (delay > 20_000 && delay <= 30_000) {
-      assert.ok(delay > 29_000, "send is scheduled about 30 seconds after the click");
-      releaseDelay = callback;
-      delayObserved();
-      if (autoAdvance) queueMicrotask(callback);
-      return {};
-    }
-    return originalTimeout(callback, delay, ...args);
+  const waiting = new Promise<void>((resolve) => {
+    delayObserved = resolve;
   });
+  let autoAdvance = false;
+  t.mock.method(
+    globalThis,
+    "setTimeout",
+    (callback: () => void, delay: number, ...args: unknown[]) => {
+      if (delay > 20_000 && delay <= 30_000) {
+        assert.ok(
+          delay > 29_000,
+          "send is scheduled about 30 seconds after the click",
+        );
+        releaseDelay = callback;
+        delayObserved();
+        if (autoAdvance) queueMicrotask(callback);
+        return {};
+      }
+      return originalTimeout(callback, delay, ...args);
+    },
+  );
   const request = (origin = "http://localhost:3000") =>
     new Request("http://localhost:3000/api/demo/start", {
       method: "POST",
       headers: { origin },
     });
+  await db.employee.createMany({
+    data: [
+      {
+        id: "kathryn",
+        firstName: "Kathryn",
+        lastName: "Cell",
+        sourceRow: 2,
+        sourceSheet: "RNS",
+        manager: "Demo Manager",
+        expirationDate: "2028-03-04",
+        verificationState: "VERIFIED",
+      },
+      {
+        id: "alexandria",
+        firstName: "Alexandria",
+        lastName: "Truax",
+        sourceRow: 3,
+        sourceSheet: "RNS",
+        manager: "Demo Manager",
+        expirationDate: "2028-02-13",
+        verificationState: "VERIFIED",
+      },
+    ],
+  });
   try {
     await db.employee.create({
       data: {
@@ -56,7 +104,9 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
     });
     assert.equal((await POST(request("https://other.example"))).status, 403);
     delete process.env.RESEND_API_KEY;
-    assert.equal((await POST(request())).status, 503);
+    const withoutEmail = await POST(request());
+    assert.equal(withoutEmail.status, 200);
+    assert.equal((await withoutEmail.json()).emailSkipped, true);
     process.env.RESEND_API_KEY = "fixture-key";
     process.env.RESEND_TEST_EMAIL_TO = "owner@example.com";
     let calls = 0;
@@ -75,7 +125,11 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
     const pending = POST(request());
     await waiting;
     assert.equal(calls, 0, "email is not sent during the delay");
-    assert.equal((await POST(request())).status, 409, "duplicate clicks cannot send another email during the delay");
+    assert.equal(
+      (await POST(request())).status,
+      409,
+      "duplicate clicks cannot send another email during the delay",
+    );
     releaseDelay();
     const response = await pending;
     assert.equal(response.status, 200);
@@ -89,16 +143,74 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
       where: { sourceSheet: "Sample employees" },
       orderBy: { sourceRow: "asc" },
     });
-    assert.equal(samples.length, 4);
+    assert.equal(samples.length, 8);
     assert.deepEqual(
       samples.map((e) => daysUntilExpiration(e.expirationDate, todayDate())),
-      [30, 14, 17, -3],
+      [30, 14, 7, -3, 30, 14, 30, 14],
     );
     for (const sample of samples) {
       assert.equal(serializeEmployee(sample).isSample, true);
       assert.equal(serializeEmployee(sample).demoExpiration, false);
     }
     assert.equal(serializeEmployee(source).expirationDate, "2028-05-01");
+    assert.deepEqual(
+      samples.slice(4).map((e) => toSeedEmployee(serializeEmployee(e)).group),
+      ["US_TECHS", "US_TECHS", "RAD_TECHS", "RAD_TECHS"],
+    );
+    assert.deepEqual(
+      samples
+        .slice(4)
+        .map((e) => toSeedCredential(serializeEmployee(e)).source),
+      ["ARDMS", "ARDMS", "ARRT", "ARRT"],
+    );
+    for (const [id, days, actual] of [
+      ["kathryn", 5, "2028-03-04"],
+      ["alexandria", 6, "2028-02-13"],
+    ] as const) {
+      const demo = serializeEmployee(
+        await db.employee.findUniqueOrThrow({ where: { id } }),
+      );
+      assert.equal(demo.daysUntilExpiration, days);
+      assert.equal(demo.demoExpiration, true);
+      assert.equal(demo.sourceExpirationDate, actual);
+      const result = {
+        state: "ERROR" as const,
+        source: "Michigan MILARA" as const,
+        sourceUrl: "https://example.com",
+        checkedAt: new Date().toISOString(),
+        credential: null,
+        candidates: [],
+        rawFields: null,
+        error: "Site unavailable",
+      };
+      await persistVerification(id, result);
+      assert.equal(
+        serializeEmployee(
+          await db.employee.findUniqueOrThrow({ where: { id } }),
+        ).demoExpiration,
+        true,
+      );
+      await persistVerification(id, {
+        ...result,
+        state: "VERIFIED",
+        error: null,
+        credential: {
+          employeeName: demo.firstName + " " + demo.lastName,
+          credentialType: "Registered Nurse",
+          licenseNumber: "fixture-license",
+          status: "Active",
+          issueDate: null,
+          expirationDate: actual,
+          county: null,
+          sourceUrl: "https://example.com",
+        },
+      });
+      const verified = serializeEmployee(
+        await db.employee.findUniqueOrThrow({ where: { id } }),
+      );
+      assert.equal(verified.expirationDate, actual);
+      assert.equal(verified.demoExpiration, false);
+    }
     globalThis.fetch = async () => Response.json({}, { status: 403 });
     autoAdvance = true;
     const rejected = await POST(request());
@@ -107,7 +219,19 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
     assert.equal(failed.samplesAdded, true);
     assert.equal(
       await db.employee.count({ where: { sourceSheet: "Sample employees" } }),
-      4,
+      8,
+    );
+    assert.equal(
+      serializeEmployee(
+        await db.employee.findUniqueOrThrow({ where: { id: "kathryn" } }),
+      ).daysUntilExpiration,
+      5,
+    );
+    assert.equal(
+      serializeEmployee(
+        await db.employee.findUniqueOrThrow({ where: { id: "alexandria" } }),
+      ).daysUntilExpiration,
+      6,
     );
     assert.match(failed.error, /account address/);
   } finally {

@@ -33,6 +33,13 @@ const migration = (await import("node:fs/promises")).readdir;
 const migrations = await migration("prisma/migrations");
 const name = migrations.find((n) => n.endsWith("_init"))!;
 sqlite.exec(await readFile(`prisma/migrations/${name}/migration.sql`, "utf8"));
+for (const migrationName of migrations
+  .filter((n) => n !== name && n !== "migration_lock.toml")
+  .sort()) {
+  sqlite.exec(
+    await readFile(`prisma/migrations/${migrationName}/migration.sql`, "utf8"),
+  );
+}
 sqlite.close();
 const { db } = await import("../lib/db");
 const { listEmployees, matchEmployeeName, summarize } =

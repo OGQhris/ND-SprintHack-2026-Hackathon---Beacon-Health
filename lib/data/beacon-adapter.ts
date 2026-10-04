@@ -4,6 +4,7 @@ import type {
   CredentialSeed,
   Employee,
   EmployeeRecord,
+  EmployeeGroup,
   FailureReason,
   ReviewReason,
   VerificationOutcome,
@@ -12,6 +13,7 @@ import type {
   VerificationState,
 } from "@/lib/types";
 import { MICHIGAN_URL } from "@/services/credentialProviders/types";
+import { GROUP_META } from "@/lib/data/sources";
 
 /**
  * The one translation between the Prisma-backed backend (EmployeeRecord, VerificationAudit)
@@ -60,9 +62,12 @@ export type AuditDto = {
 };
 
 /** Source statuses that still count as a verified record; the expiration date decides the rest. */
-const ACCEPTABLE_STATUS = /^(active|current|valid|renewed|expired|clear|good standing)$/i;
+const ACCEPTABLE_STATUS =
+  /^(active|current|valid|renewed|expired|clear|good standing)$/i;
 
-export function isAcceptableSourceStatus(status: string | null | undefined): boolean {
+export function isAcceptableSourceStatus(
+  status: string | null | undefined,
+): boolean {
   if (!status) return true;
   return ACCEPTABLE_STATUS.test(status.trim());
 }
@@ -70,23 +75,42 @@ export function isAcceptableSourceStatus(status: string | null | undefined): boo
 const REVIEW_REASONS: [RegExp, ReviewReason][] = [
   [/multiple|more than one|several|ambiguous/i, "multiple_matches"],
   [/additional pages|human review|captcha|challenge/i, "human_action_required"],
-  [/no license results|no records|no results|not found|no matching/i, "no_record_found"],
+  [
+    /no license results|no records|no results|not found|no matching/i,
+    "no_record_found",
+  ],
 ];
 
 const FAILURE_REASONS: [RegExp, FailureReason][] = [
   [/timed? ?out|timeout|deadline/i, "timeout"],
-  [/server stopped|could not be saved|already being verified|already in progress/i, "unknown"],
-  [/http 5\d\d|temporary server error|unavailable|could not be checked|unreachable|network|bad gateway/i, "source_unavailable"],
+  [
+    /server stopped|could not be saved|already being verified|already in progress/i,
+    "unknown",
+  ],
+  [
+    /http 5\d\d|temporary server error|unavailable|could not be checked|unreachable|network|bad gateway/i,
+    "source_unavailable",
+  ],
 ];
 
-export function reviewReasonFromMessage(message: string | null | undefined): ReviewReason {
+export function reviewReasonFromMessage(
+  message: string | null | undefined,
+): ReviewReason {
   if (!message) return "credential_mismatch";
-  return REVIEW_REASONS.find(([re]) => re.test(message))?.[1] ?? "credential_mismatch";
+  return (
+    REVIEW_REASONS.find(([re]) => re.test(message))?.[1] ??
+    "credential_mismatch"
+  );
 }
 
-export function failureReasonFromMessage(message: string | null | undefined): FailureReason {
+export function failureReasonFromMessage(
+  message: string | null | undefined,
+): FailureReason {
   if (!message) return "unknown";
-  return FAILURE_REASONS.find(([re]) => re.test(message))?.[1] ?? "source_unavailable";
+  return (
+    FAILURE_REASONS.find(([re]) => re.test(message))?.[1] ??
+    "source_unavailable"
+  );
 }
 
 export type MappedState = {
@@ -110,45 +134,76 @@ export function mapVerificationState(input: StateInput): MappedState {
     case "VERIFIED":
       return isAcceptableSourceStatus(credentialStatus)
         ? { verificationState: "verified" }
-        : { verificationState: "needs_review", lastReason: "credential_mismatch" };
+        : {
+            verificationState: "needs_review",
+            lastReason: "credential_mismatch",
+          };
     case "NEEDS_REVIEW":
-      return { verificationState: "needs_review", lastReason: reviewReasonFromMessage(verificationError) };
+      return {
+        verificationState: "needs_review",
+        lastReason: reviewReasonFromMessage(verificationError),
+      };
     case "NOT_FOUND":
-      return { verificationState: "needs_review", lastReason: "no_record_found" };
+      return {
+        verificationState: "needs_review",
+        lastReason: "no_record_found",
+      };
     case "ERROR":
-      return { verificationState: "verification_failed", lastReason: failureReasonFromMessage(verificationError) };
+      return {
+        verificationState: "verification_failed",
+        lastReason: failureReasonFromMessage(verificationError),
+      };
     case "VERIFYING": {
       // The server is mid-check. Show the previous state rather than flickering to "needs review".
       const lastSuccessIsLatest =
-        !!input.lastVerifiedAt && (!input.lastAttemptAt || input.lastVerifiedAt >= input.lastAttemptAt);
+        !!input.lastVerifiedAt &&
+        (!input.lastAttemptAt || input.lastVerifiedAt >= input.lastAttemptAt);
       return lastSuccessIsLatest
         ? { verificationState: "verified", inFlight: true }
-        : { verificationState: "unverified", lastReason: "in_progress", inFlight: true };
+        : {
+            verificationState: "unverified",
+            lastReason: "in_progress",
+            inFlight: true,
+          };
     }
     default:
-      return { verificationState: "unverified", lastReason: "not_yet_verified" };
+      return {
+        verificationState: "unverified",
+        lastReason: "not_yet_verified",
+      };
   }
 }
 
-export function outcomeKindFor(state: VerificationState): VerificationOutcomeKind {
+export function outcomeKindFor(
+  state: VerificationState,
+): VerificationOutcomeKind {
   if (state === "verified") return "verified";
   if (state === "needs_review") return "needs_review";
   return "verification_failed";
 }
 
 export function toSeedEmployee(e: EmployeeRecord): Employee {
+  const group = groupFor(e);
   return {
     id: e.id,
     firstName: e.firstName,
     lastName: e.lastName,
-    role: e.credentialType || RN_CREDENTIAL_TYPE,
-    group: "RNS",
+    role: GROUP_META[group].role,
+    group,
     managerName: e.manager || undefined,
     state: RN_STATE,
     sourceSheet: e.sourceSheet,
     sourceRow: e.sourceRow,
     isSample: e.isSample,
   };
+}
+
+function groupFor(e: EmployeeRecord): EmployeeGroup {
+  if (e.credentialType === GROUP_META.US_TECHS.credentialType)
+    return "US_TECHS";
+  if (e.credentialType === GROUP_META.RAD_TECHS.credentialType)
+    return "RAD_TECHS";
+  return "RNS";
 }
 
 export function toSeedCredential(e: EmployeeRecord): Credential {
@@ -158,7 +213,7 @@ export function toSeedCredential(e: EmployeeRecord): Credential {
     employeeId: e.id,
     credentialType: e.credentialType || RN_CREDENTIAL_TYPE,
     credentialNumber: e.licenseNumber ?? undefined,
-    source: RN_SOURCE,
+    source: GROUP_META[groupFor(e)].defaultSource,
     verificationState: mapped.verificationState,
     lastReason: mapped.lastReason,
     inFlight: mapped.inFlight,
@@ -171,7 +226,9 @@ export function toSeedCredential(e: EmployeeRecord): Credential {
     lastError: e.verificationError ?? undefined,
     sourceUrl: e.sourceUrl ?? undefined,
     demoExpiration: e.demoExpiration || undefined,
-    sourceExpirationDate: e.demoExpiration ? (e.sourceExpirationDate ?? undefined) : undefined,
+    sourceExpirationDate: e.demoExpiration
+      ? (e.sourceExpirationDate ?? undefined)
+      : undefined,
   };
 }
 
@@ -212,9 +269,13 @@ export function auditToRecord(a: AuditDto): VerificationRecord {
  * Turns the employee the verify route returns into the outcome the verify panel, toasts and store expect.
  * `recordId` is the audit row the server wrote, so the history highlight and the next poll agree.
  */
-export function employeeToOutcome(e: EmployeeRecord, options: { auditId?: string } = {}): VerificationOutcome {
+export function employeeToOutcome(
+  e: EmployeeRecord,
+  options: { auditId?: string } = {},
+): VerificationOutcome {
   const mapped = mapVerificationState(e);
-  const lastChecked = e.lastAttemptAt ?? e.lastVerifiedAt ?? new Date().toISOString();
+  const lastChecked =
+    e.lastAttemptAt ?? e.lastVerifiedAt ?? new Date().toISOString();
   const meta = { mode: "live" as const, recordId: options.auditId };
   const detail = e.verificationError ?? undefined;
 
@@ -222,7 +283,9 @@ export function employeeToOutcome(e: EmployeeRecord, options: { auditId?: string
     return {
       kind: "verified",
       ...meta,
-      detail: e.credentialStatus ? `Source status: ${e.credentialStatus}.` : undefined,
+      detail: e.credentialStatus
+        ? `Source status: ${e.credentialStatus}.`
+        : undefined,
       credential: {
         source: RN_SOURCE,
         credentialType: e.credentialType || RN_CREDENTIAL_TYPE,
@@ -237,12 +300,19 @@ export function employeeToOutcome(e: EmployeeRecord, options: { auditId?: string
     };
   }
   if (mapped.verificationState === "needs_review") {
-    const reason = (mapped.lastReason as ReviewReason | undefined) ?? "credential_mismatch";
+    const reason =
+      (mapped.lastReason as ReviewReason | undefined) ?? "credential_mismatch";
     const mismatch =
       e.verificationState === "VERIFIED" && e.credentialStatus
         ? `The source lists this license as "${e.credentialStatus}".`
         : undefined;
-    return { kind: "needs_review", ...meta, reason, lastChecked, detail: mismatch ?? detail };
+    return {
+      kind: "needs_review",
+      ...meta,
+      reason,
+      lastChecked,
+      detail: mismatch ?? detail,
+    };
   }
   const reason: FailureReason =
     mapped.verificationState === "verification_failed"
