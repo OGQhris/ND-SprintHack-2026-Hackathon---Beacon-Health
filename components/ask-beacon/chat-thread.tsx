@@ -109,10 +109,7 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
     const el = scroller.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-    if (!compact && document.scrollingElement) {
-      document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight;
-    }
-  }, [compact]);
+  }, []);
   const count = thread?.messages.length ?? 0;
   const lastLength = thread?.messages.at(-1)?.text.length ?? 0;
   const activityProgress = thread?.messages.at(-1)?.activities?.map((a) => `${a.id}:${a.done}`).join(",");
@@ -152,7 +149,7 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
         ref={scroller}
         data-chat-scroll
         onScroll={busy ? followBottom : undefined}
-        className={cn("min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]", compact ? "px-4 py-3" : "px-1 py-4")}
+        className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]", compact ? "px-4 py-3" : "px-1 py-4")}
       >
         <div className={cn("flex flex-col", compact ? "gap-3" : "gap-5")}>
           {!thread || thread.messages.length === 0 ? (
@@ -169,7 +166,7 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
           )}
         </div>
       </div>
-      <form onSubmit={submit} className={cn("border-t border-rule", compact ? "px-3 py-2" : "px-1 py-3")}>
+      <form onSubmit={submit} className={cn("shrink-0 border-t border-rule", compact ? "px-3 py-2" : "px-1 py-3")}>
         <InputGroup className={cn("bg-paper", compact ? "h-10" : "h-12")}>
           <InputGroupInput
             placeholder={compact ? "Ask Beacon" : "Ask about expirations, a person, or who needs attention"}

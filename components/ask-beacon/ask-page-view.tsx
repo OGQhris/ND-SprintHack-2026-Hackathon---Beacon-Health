@@ -32,8 +32,8 @@ export function AskPageView({ threadId }: { threadId?: string }) {
 
   if (open) {
     return (
-      <div className="mx-auto flex h-[calc(100dvh-7rem)] min-h-96 w-full max-w-3xl flex-none flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-3">
           <Button asChild variant="ghost" size="sm" className="-ml-2 text-ink-soft">
             <Link href="/ask">
               <ArrowLeftIcon data-icon="inline-start" />
@@ -62,7 +62,7 @@ export function AskPageView({ threadId }: { threadId?: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 pt-6 md:pt-14">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto overscroll-contain pt-6 md:pt-14">
       <div className="flex flex-col items-center gap-6 text-center">
         <span aria-hidden className="flex size-12 items-center justify-center rounded-xl bg-seal text-lg font-semibold text-white">
           B

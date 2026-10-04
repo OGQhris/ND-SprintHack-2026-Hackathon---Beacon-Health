@@ -29,7 +29,7 @@ export function TopNav() {
   const title = TITLES.find((t) => pathname.startsWith(t.prefix))?.title ?? "Credential Monitoring";
 
   return (
-    <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-rule bg-paper px-4 md:gap-4 md:px-6">
+    <div className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-paper px-4 md:gap-4 md:px-6">
       <SidebarTrigger className="md:hidden" />
       <h2 className="text-sm font-medium text-ink">{title}</h2>
 
