@@ -85,7 +85,7 @@ export function AlertCard({ alert, row, today }: Props) {
           <p className="text-sm text-ink-soft">{alert.detail}</p>
           <Meta alert={alert} employee={employee} today={today} />
         </div>
-        <div className="w-full sm:w-auto sm:min-w-[260px]">
+        <div className="w-full max-w-full shrink-0 sm:w-[36rem]">
           <VerifyPanel
             employeeId={employee.id}
             source={credential.source}

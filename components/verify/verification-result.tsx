@@ -52,9 +52,10 @@ const TONE: Record<VerificationOutcome["kind"], string> = {
 export function VerificationResult({ outcome, sourceLink, onRetry, onDismiss, className }: Props) {
   const Icon = outcome.kind === "verified" ? CircleCheckIcon : outcome.kind === "needs_review" ? SearchCheckIcon : TriangleAlertIcon;
   const showSource = outcome.kind !== "verified" && sourceLink;
+  const verifiedSourceLink = outcome.kind === "verified" ? outcome.credential.sourceUrl ?? sourceLink : undefined;
 
   return (
-    <div className={cn("flex flex-col gap-3 rounded-md border px-3 py-2.5", TONE[outcome.kind], className)} role="status">
+    <div className={cn("flex w-full min-w-0 flex-col gap-3 rounded-md border px-3 py-2.5", TONE[outcome.kind], className)} role="status">
       <div className="flex items-start gap-2">
         <Icon className="mt-0.5 size-4 shrink-0" />
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -68,11 +69,21 @@ export function VerificationResult({ outcome, sourceLink, onRetry, onDismiss, cl
           ) : null}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={cn("flex flex-wrap items-center gap-2", outcome.kind === "verified" && "justify-end")}>
         {outcome.kind === "verified" ? (
-          <Button variant="outline" size="sm" onClick={onDismiss} className="bg-paper">
-            Done
-          </Button>
+          <>
+            <Button variant="outline" size="sm" onClick={onDismiss} className="bg-paper">
+              Done
+            </Button>
+            {verifiedSourceLink ? (
+              <Button asChild variant="outline" size="sm" className="bg-paper">
+                <a href={verifiedSourceLink} target="_blank" rel="noreferrer">
+                  <ExternalLinkIcon data-icon="inline-start" />
+                  {outcome.credential.source === "RNS" ? "View on Michigan MILARA" : "Open credential source"}
+                </a>
+              </Button>
+            ) : null}
+          </>
         ) : (
           <>
             <Button variant="outline" size="sm" onClick={onRetry} className="bg-paper">

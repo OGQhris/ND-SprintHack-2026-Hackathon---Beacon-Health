@@ -4,7 +4,10 @@ import { RotateCcwIcon, ShieldCheckIcon } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { watchVerification } from "@/components/verification/viewer-events";
-import { STAGES, useVerifyCredential } from "@/components/verify/use-verify-credential";
+import {
+  STAGES,
+  useVerifyCredential,
+} from "@/components/verify/use-verify-credential";
 import { VerificationProgress } from "@/components/verify/verification-progress";
 import { VerificationResult } from "@/components/verify/verification-result";
 import { SOURCE_META } from "@/lib/data/sources";
@@ -23,8 +26,26 @@ type Props = {
   onRecord?: (recordId: string) => void;
 };
 
-export function VerifyPanel({ employeeId, source, sourceLink, autoStart, compact, compactLabel = "Reverify", onRecord }: Props) {
-  const verify = useVerifyCredential(employeeId);
+export function VerifyPanel(props: Props) {
+  const verify = useVerifyCredential(props.employeeId);
+  return <VerifyPanelControls {...props} verify={verify} />;
+}
+
+/** Shared controls; detail pages own the check state so the card edge stays in sync. */
+export function VerifyPanelControls({
+  employeeId,
+  source,
+  sourceLink,
+  autoStart,
+  compact,
+  compactLabel = "Reverify",
+  onRecord,
+  verify,
+  cardEdgeProgress = false,
+}: Props & {
+  verify: ReturnType<typeof useVerifyCredential>;
+  cardEdgeProgress?: boolean;
+}) {
   const { phase, start, lastRecordId } = verify;
 
   useEffect(() => {
@@ -48,7 +69,12 @@ export function VerifyPanel({ employeeId, source, sourceLink, autoStart, compact
         label={verify.stageLabel}
         holding={verify.holding}
         mode={verify.mode}
-        onWatch={verify.mode === "live" ? () => watchVerification(employeeId) : undefined}
+        showBar={!cardEdgeProgress}
+        onWatch={
+          verify.mode === "live"
+            ? () => watchVerification(employeeId)
+            : undefined
+        }
       />
     );
   }
@@ -68,7 +94,8 @@ export function VerifyPanel({ employeeId, source, sourceLink, autoStart, compact
   }
 
   if (compact) {
-    const CompactIcon = compactLabel === "Verify now" ? ShieldCheckIcon : RotateCcwIcon;
+    const CompactIcon =
+      compactLabel === "Verify now" ? ShieldCheckIcon : RotateCcwIcon;
     return (
       <Button variant="outline" size="sm" onClick={() => void start()}>
         <CompactIcon data-icon="inline-start" />
@@ -80,12 +107,18 @@ export function VerifyPanel({ employeeId, source, sourceLink, autoStart, compact
   const meta = SOURCE_META[source];
   return (
     <div className="flex flex-col items-start gap-1.5 sm:items-end">
-      <Button size="lg" className="h-10 px-4 text-sm" onClick={() => void start()}>
+      <Button
+        size="lg"
+        className="h-10 px-4 text-sm"
+        onClick={() => void start()}
+      >
         <ShieldCheckIcon data-icon="inline-start" />
         Verify now
       </Button>
       <p className="text-xs text-ink-faint">
-        {verify.mode === "live" ? `Checks ${meta.label} directly.` : `Simulated for ${meta.shortLabel} in this demo.`}
+        {verify.mode === "live"
+          ? `Checks ${meta.label} directly.`
+          : `Simulated for ${meta.shortLabel} in this demo.`}
       </p>
     </div>
   );

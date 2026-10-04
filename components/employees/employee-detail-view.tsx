@@ -8,8 +8,15 @@ import { EmployeeHeader } from "@/components/employees/employee-header";
 import { VerificationHistory } from "@/components/employees/verification-history";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
-import { VerifyPanel } from "@/components/verify/verify-panel";
-import { getRowForEmployee, getVerificationHistory } from "@/lib/data/selectors";
+import { VerifyPanelControls } from "@/components/verify/verify-panel";
+import {
+  STAGES,
+  useVerifyCredential,
+} from "@/components/verify/use-verify-credential";
+import {
+  getRowForEmployee,
+  getVerificationHistory,
+} from "@/lib/data/selectors";
 import { useStoreState } from "@/lib/store/credential-store";
 
 type Props = { id: string; autoVerify?: boolean };
@@ -19,7 +26,19 @@ export function EmployeeDetailView({ id, autoVerify }: Props) {
   const row = useMemo(() => getRowForEmployee(state, id), [state, id]);
   const history = useMemo(() => getVerificationHistory(state, id), [state, id]);
   const [highlightId, setHighlightId] = useState<string | undefined>();
-  const onRecord = useCallback((recordId: string) => setHighlightId(recordId), []);
+  const verify = useVerifyCredential(id);
+  const verificationProgress =
+    verify.phase === "running"
+      ? {
+          stage: verify.stage,
+          totalStages: STAGES.length,
+          holding: verify.holding,
+        }
+      : null;
+  const onRecord = useCallback(
+    (recordId: string) => setHighlightId(recordId),
+    [],
+  );
 
   if (!row) {
     return (
@@ -45,11 +64,14 @@ export function EmployeeDetailView({ id, autoVerify }: Props) {
         credential={credential}
         derived={derived}
         today={state.today}
+        verificationProgress={verificationProgress}
         verifySlot={
-          <VerifyPanel
+          <VerifyPanelControls
+            verify={verify}
+            cardEdgeProgress
             employeeId={employee.id}
             source={credential.source}
-            sourceLink={state.sourceLinks[credential.source]}
+            sourceLink={credential.sourceUrl ?? state.sourceLinks[credential.source]}
             autoStart={autoVerify}
             onRecord={onRecord}
           />
