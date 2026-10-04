@@ -14,12 +14,15 @@ primary_region = "ord"
   APP_TIMEZONE = "America/Indiana/Indianapolis"
   # OPENAI_API_KEY and OPENAI_MODEL are secrets: fly secrets set OPENAI_API_KEY=... OPENAI_MODEL=gpt-5.4-mini
 
+# Roster checks run inside the web process (one Playwright browser at a time). Letting Fly stop the machine
+# when no browser tab is connected would kill a check mid-batch, so the single machine stays up.
+# Cost: one shared-cpu-1x with 2 GB is roughly ten dollars a month while it exists; destroy the app afterwards.
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [http_service.concurrency]
     type = "requests"

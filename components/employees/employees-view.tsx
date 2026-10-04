@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { EmployeeFilters } from "@/components/employees/employee-filters";
 import { EmployeeTable } from "@/components/employees/employee-table";
+import { ImportEmployeesDialog } from "@/components/employees/import-employees-dialog";
 import { SelectionToolbar } from "@/components/employees/selection-toolbar";
 import { pageSlice, TablePagination } from "@/components/employees/table-pagination";
 import { useTableSelection } from "@/components/employees/use-table-selection";
@@ -36,7 +37,11 @@ export function EmployeesView({ initialFilters }: { initialFilters: Filters }) {
 
   return (
     <>
-      <PageHeader title="Employees" subtitle="View employees and their credential status." />
+      <PageHeader
+        title="Employees"
+        subtitle="View employees and their credential status."
+        actions={<ImportEmployeesDialog />}
+      />
       <section className="flex flex-col gap-3" aria-label="Employee directory">
         <EmployeeFilters filters={filters} onChange={changeFilters} roles={roles} />
         <SelectionToolbar

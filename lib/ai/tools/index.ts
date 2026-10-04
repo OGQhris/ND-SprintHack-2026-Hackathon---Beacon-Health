@@ -197,7 +197,7 @@ const registry: RegisteredTool[] = [
   ),
   define(
     "verify_all_credentials",
-    "Start sequential verification for the entire fourth-worksheet roster. Returns STARTED and background progress.",
+    "Start sequential verification for the whole roster. Returns STARTED and background progress.",
     "Starting sequential roster verification",
     empty,
     async () => {

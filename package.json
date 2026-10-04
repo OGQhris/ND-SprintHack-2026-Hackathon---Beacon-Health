@@ -18,6 +18,7 @@
     "demo:restore": "node --import tsx scripts/demoState.ts restore",
     "demo:reset": "node --import tsx scripts/demoState.ts reset",
     "demo:list": "node --import tsx scripts/demoState.ts list",
+    "demo:remove": "node --import tsx scripts/demoState.ts remove",
     "postinstall": "prisma generate",
     "ai:smoke": "node --import tsx scripts/aiSmoke.ts",
     "test:ui": "node scripts/checkUi.mjs",

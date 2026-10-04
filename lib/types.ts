@@ -65,6 +65,35 @@ export type DashboardData = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* CSV employee import (POST /api/employees/import).                           */
+/* -------------------------------------------------------------------------- */
+
+/** One person the import created; `row` is the 1-based record number in the file (the header is row 1). */
+export type ImportedEmployee = { id: string; row: number; firstName: string; lastName: string; manager: string };
+
+export type EmployeeImportSkipped = { row: number; reason: string; name?: string };
+
+export type EmployeeImportVerification = {
+  requested: boolean;
+  started: boolean;
+  count: number;
+  /** What started, or why nothing did (a roster check already running, nothing new to verify). */
+  message: string;
+};
+
+export type EmployeeImportResult = {
+  fileName: string;
+  /** Non-empty data rows found in the file (header excluded). */
+  total: number;
+  imported: ImportedEmployee[];
+  /** Rows whose first and last name already match someone on the roster; left untouched. */
+  alreadyOnRoster: { row: number; firstName: string; lastName: string; employeeId: string }[];
+  skipped: EmployeeImportSkipped[];
+  importedAt: string;
+  verification: EmployeeImportVerification;
+};
+
+/* -------------------------------------------------------------------------- */
 /* Front-end view model (ported from the hackathon app).                       */
 /* lib/data/beacon-adapter.ts is the only place that maps backend records      */
 /* onto these types.                                                           */

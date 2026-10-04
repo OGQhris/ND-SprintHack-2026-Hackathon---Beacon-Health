@@ -187,7 +187,7 @@ export async function startVerifyAll(
   if (ids && employees.length !== ids.length)
     throw new Error("Some selected employees no longer exist.");
   if (!employees.length)
-    throw new Error("Import worksheet four before verifying the roster.");
+    throw new Error("Import employees before verifying the roster.");
   state.stopRequested = false;
   state.batch = {
     running: true,

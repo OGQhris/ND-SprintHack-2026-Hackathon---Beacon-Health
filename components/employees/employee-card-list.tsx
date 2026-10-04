@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ChevronRightIcon } from "lucide-react";
-import { ExpiryRunway } from "@/components/shared/expiry-runway";
 import { LastChecked } from "@/components/shared/last-checked";
 import { DemoTag, SampleTag, SourceLabel } from "@/components/shared/source-label";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -65,7 +64,6 @@ export function EmployeeCardList({ rows, today, sampleCount = 0, className }: Pr
                       {formatDate(credential.expirationDate)}
                       {credential.demoExpiration ? <DemoTag /> : null}
                     </span>
-                    <ExpiryRunway daysUntil={derived.daysUntil} status={derived.status} />
                   </dd>
                 </div>
                 <div className="flex flex-col gap-0.5">

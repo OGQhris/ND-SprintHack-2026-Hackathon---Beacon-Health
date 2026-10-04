@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { KpiRow } from "@/components/dashboard/kpi-row";
 import { EmployeeFilters } from "@/components/employees/employee-filters";
 import { EmployeeTable } from "@/components/employees/employee-table";
+import { ImportEmployeesDialog } from "@/components/employees/import-employees-dialog";
 import { SelectionToolbar } from "@/components/employees/selection-toolbar";
 import { pageSlice, TablePagination } from "@/components/employees/table-pagination";
 import { useTableSelection } from "@/components/employees/use-table-selection";
@@ -47,11 +48,14 @@ export function DashboardView({ initialFilters }: { initialFilters: Filters }) {
         title="Credential Monitoring"
         subtitle="Monitor employee licenses, expirations, and verification status."
         actions={
-          <Button variant="outline" onClick={exportCsv} disabled={visible.length === 0} className="bg-paper">
-            <DownloadIcon data-icon="inline-start" />
-            Export CSV
-            <span className="numeric text-ink-faint">{visible.length}</span>
-          </Button>
+          <>
+            <ImportEmployeesDialog />
+            <Button variant="outline" onClick={exportCsv} disabled={visible.length === 0} className="bg-paper">
+              <DownloadIcon data-icon="inline-start" />
+              Export CSV
+              <span className="numeric text-ink-faint">{visible.length}</span>
+            </Button>
+          </>
         }
       />
 

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { HistoryIcon, MoreHorizontalIcon, ShieldCheckIcon, UserIcon, UsersIcon } from "lucide-react";
 import { EmployeeCardList } from "@/components/employees/employee-card-list";
 import { EmptyState } from "@/components/shared/empty-state";
-import { ExpiryRunway } from "@/components/shared/expiry-runway";
 import { LastChecked } from "@/components/shared/last-checked";
 import { DemoTag, SampleTag, SourceLabel } from "@/components/shared/source-label";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -161,13 +160,10 @@ export function EmployeeTable({ rows, today, sampleCount = 0, selection, onClear
                     <SourceLabel source={credential.source} />
                   </TableCell>
                   <TableCell className={CELL}>
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-ink">
-                        {formatDate(credential.expirationDate)}
-                        {credential.demoExpiration ? <DemoTag /> : null}
-                      </span>
-                      <ExpiryRunway daysUntil={derived.daysUntil} status={derived.status} />
-                    </div>
+                    <span className="inline-flex items-center gap-1.5 text-ink">
+                      {formatDate(credential.expirationDate)}
+                      {credential.demoExpiration ? <DemoTag /> : null}
+                    </span>
                   </TableCell>
                   <TableCell className={CELL}>
                     <div className="flex flex-col items-start gap-0.5">

@@ -49,6 +49,16 @@ Or, after copying the file to `data/Credentialing List - KZO.xlsx`, use `npm run
 
 The supplied fourth sheet has **17 employees**, including **Tatyanna Rosa**, with managers **Kimblery Gjeltema** and **Christianna Davison**, exactly as written in Excel. No other worksheet is imported. Data files, SQLite databases, debug screenshots, and `.env.local` are ignored by Git. A fresh database starts entirely unverified; the current local database contains Kathryn's real, successfully checked record.
 
+### Add employees from a CSV
+
+**Add employees** on the Dashboard and Employees pages opens a dialog that takes a CSV of new hires. It is a demo stand-in: in production Beacon would receive new hires automatically from the HR system, and the dialog says so. Drop a file or click to browse, keep **Verify after import** checked, and press **Import and verify**.
+
+- Columns: `First name`, `Last name`, and optionally `Manager`. Common aliases are recognised (`FIRST NAME`, `Surname`, `Supervisor`); extra columns are ignored; the delimiter may be a comma, semicolon or tab. A template lives at `public/templates/new-hires-template.csv` (also linked from the dialog).
+- Names are trimmed but otherwise kept exactly as written. People already on the roster (same first and last name, ignoring case and accents) are left untouched; duplicate rows in the file and rows without a first or last name are skipped. The toast after the import reports those counts.
+- **Verify after import** starts the same sequential roster check as **Verify selected** for the new people only: real Michigan MILARA lookups, one browser at a time, shown in the banner with **Stop after this one**. The checkbox is disabled while another roster check is running.
+- Limits: 500 people and 1 MB per file. The route is `POST /api/employees/import` (multipart `file` plus `verify`). Each import gets its own `sourceSheet` (`csv:<file>:<timestamp>`), so ids never collide with the workbook roster or with a second import of the same file.
+- The demo clock never assigns simulated expiration dates to CSV-imported people: they stay **Not yet verified** until their real check runs.
+
 ### Production-style local demo
 
 ```bash
@@ -178,14 +188,14 @@ fly deploy --ha=false
 fly open /dashboard
 ```
 
-The first deploy builds the image on Fly's remote builder (several minutes: it installs dependencies, runs `next build` and downloads IBM Plex Sans). The app URL is `https://<app-name>.fly.dev`. One machine with 2 GB of memory is configured; Chromium does not fit in the 256 MB default. The machine stops when idle and restarts on the next request, which adds a few seconds to the first page load.
+The first deploy builds the image on Fly's remote builder (several minutes: it installs dependencies, runs `next build` and downloads IBM Plex Sans). The app URL is `https://<app-name>.fly.dev`. One machine with 2 GB of memory is configured; Chromium does not fit in the 256 MB default. The machine is kept running (`auto_stop_machines = "off"`): roster checks run inside the web process, and letting Fly stop an idle machine would kill a check mid-batch as soon as every browser tab closed.
 
 Operating it:
 
 - `fly logs` shows the same `[Playwright]`, `[AI]` and `[Credential Verification]` lines as the dev server.
 - `fly ssh console -C "npm run demo:reset -- --keep 'Kathryn Cell'"` resets the hosted roster before a demo; `demo:snapshot` works there too. `demo:restore` does not, because the server holds the database open; redeploy with a new seed instead, after `fly volumes destroy` if the volume already has data (the entrypoint only seeds an empty volume).
 - The deploy uploads your local checkout (respecting `.dockerignore`, not `.gitignore`), which is how the seed database and nothing else from `data/` reaches the image. The repository stays free of employee data.
-- Costs: check Fly's current pricing; a single shared-CPU machine that stops when idle plus a 1 GB volume is at the bottom of their scale, but a payment method is required.
+- Costs: check Fly's current pricing; a single shared-CPU machine with 2 GB that stays running is roughly ten dollars a month while it exists, plus a 1 GB volume, and a payment method is required. Destroy the app after the demo.
 
 Railway works the same way: install the Railway CLI, `railway init`, add a volume mounted at `/app/data` and the `OPENAI_API_KEY` variable in the dashboard, set the service memory to 2 GB, then `railway up` (add a `.railwayignore` that does not exclude `deploy/seed`). Vercel and other serverless hosts cannot run this app: no browser, no writable disk.
 
@@ -193,7 +203,7 @@ Railway works the same way: install the Railway CLI, `railway init`, add a volum
 
 This is a local hackathon workspace: no enterprise authentication, SSO, production notification delivery, or scheduled verification. The attention center implements visual 30/14/7-day follow-up. Batch progress is in memory and requires the server to keep running. Paginated state results are conservatively sent to human review rather than automatically selecting a license. The public source sometimes returns HTTP 502; such failures are shown honestly, retain historical results, and can be retried.
 
-Only worksheet four and Michigan RNs are supported. Re-import does not reconcile removals or arbitrary row moves. Ask Beacon sends the latest 12 turns of the open thread with each question; threads are stored in the browser, so clearing site data removes them. Stopping a chat response can cancel generation; a credential action already started may still finish. Demo mode overlays clearly labeled simulated expiration dates; the original source dates and audit history stay unchanged.
+Rosters come from worksheet four of the workbook or from a CSV of first and last names; only Michigan RNs are verified. Workbook re-import does not reconcile removals or arbitrary row moves, and the CSV import never updates or removes existing people. Ask Beacon sends the latest 12 turns of the open thread with each question; threads are stored in the browser, so clearing site data removes them. Stopping a chat response can cancel generation; a credential action already started may still finish. Demo mode overlays clearly labeled simulated expiration dates; the original source dates and audit history stay unchanged.
 
 Production dependency audit passed with zero reported vulnerabilities after compatible dependency fixes. The development lint toolchain still inherits the published `braces` stack-exhaustion advisory; no patched compatible version was available during this build. It does not ship in the production dependency set.
 
@@ -214,6 +224,14 @@ npm run dev
 A snapshot holds `prisma/beacon.db` (employees, audits, alert actions), `data/verification-runs/` (browser recordings) and `data/demo-settings.json` (demo clock) under the ignored `data/snapshots/<name>/`. `npm run demo:list` shows what exists. Restoring refuses to run while a server has the database open, because it swaps the files underneath it.
 
 To start from a clean roster instead, `npm run demo:reset` puts every employee back to **Not yet verified** and deletes audits, alert actions, recordings and the demo clock; `npm run demo:reset -- --keep "Kathryn Cell"` keeps one person's real record so the demo opens with a single verified nurse. Reset works with the server running (the dashboard picks it up on the next poll); restart the server if the demo clock was on. Ask Beacon threads live in the browser; delete them from the `/ask` page if a clean chat matters.
+
+To show new hires arriving and being verified live, take a few real nurses off the roster first:
+
+```bash
+npm run demo:remove -- "Kathryn Cell" "Dawn Vadan"   # removes them and writes data/reimport-<stamp>.csv
+```
+
+During the demo, open **Add employees**, drop that CSV, keep **Verify after import** checked, and watch the banner check them against Michigan MILARA. Do not run `npm run import` or `npm run setup` afterwards: the workbook importer would create the removed people again under their old rows. `npm run demo:restore -- pristine` puts everything back.
 
 ### Watch a verification
 

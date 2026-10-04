@@ -11,7 +11,11 @@ export function serializeEmployee(
   e: Employee,
   today = todayDate(),
 ): EmployeeRecord {
-  const demoDate = seededExpiration(e.sourceRow);
+  // The demo clock simulates dates for the workbook roster only. People added through the CSV import stay
+  // "Not yet verified" until their real check runs, so a live import never shows a made-up expiration.
+  const demoDate = e.sourceSheet.startsWith("csv:")
+    ? null
+    : seededExpiration(e.sourceRow);
   const expiration = demoDate || e.expirationDate;
   return {
     ...e,

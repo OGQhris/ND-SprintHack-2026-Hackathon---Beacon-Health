@@ -11,6 +11,8 @@ import { db } from "../lib/db";
  *   npm run demo:snapshot -- <name>              consistent copy of the database, recordings and demo clock
  *   npm run demo:restore  -- <name>              put that copy back (stop the dev server first)
  *   npm run demo:reset    -- [--keep "First Last"]...   everyone back to "Not yet verified", except the people kept
+ *   npm run demo:remove   -- "First Last"...      take people off the roster and write them to data/reimport-*.csv,
+ *                                                 ready for "Add employees" (with Verify after import) live in the demo
  *   npm run demo:list                            what snapshots exist
  *
  * State covered: prisma/beacon.db (employees, audits, alert actions), data/verification-runs (browser
@@ -43,7 +45,14 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function parseArgs(argv: string[]): { command: string; name: string; keep: string[]; force: boolean } {
+function parseArgs(argv: string[]): {
+  command: string;
+  name: string;
+  /** Every positional argument: the people to remove. */
+  names: string[];
+  keep: string[];
+  force: boolean;
+} {
   const [command = "help", ...rest] = argv;
   const keep: string[] = [];
   const positional: string[] = [];
@@ -58,8 +67,10 @@ function parseArgs(argv: string[]): { command: string; name: string; keep: strin
     else positional.push(arg);
   }
   const name = positional[0] ?? "pristine";
-  if (!/^[a-z0-9][a-z0-9._-]{0,60}$/i.test(name)) fail("Snapshot names use letters, digits, dots, dashes and underscores.");
-  return { command, name, keep, force };
+  if (command !== "remove" && !/^[a-z0-9][a-z0-9._-]{0,60}$/i.test(name)) {
+    fail("Snapshot names use letters, digits, dots, dashes and underscores.");
+  }
+  return { command, name, names: positional, keep, force };
 }
 
 /** PIDs holding the database open (the dev server, usually). lsof exits 1 when nothing matches. */
@@ -207,6 +218,71 @@ async function reset(keep: string[]) {
   }
 }
 
+/**
+ * Takes people off the roster (records, audits, alert actions, recordings) and writes them to a CSV under data/,
+ * so the demo can bring them back through "Add employees" with Verify after import and show real lookups.
+ */
+async function remove(names: string[]) {
+  if (!names.length) fail('Give at least one name, for example: npm run demo:remove -- "Kathryn Cell"');
+  const employees = await db.employee.findMany({
+    select: { id: true, firstName: true, lastName: true, manager: true, verificationState: true },
+  });
+  const normalize = (n: string) => n.toLowerCase().replace(/\s+/g, " ").trim();
+  const targets: typeof employees = [];
+  const problems: string[] = [];
+  for (const name of names) {
+    const matches = employees.filter((e) => normalize(`${e.firstName} ${e.lastName}`) === normalize(name));
+    if (matches.length === 1 && !targets.includes(matches[0])) targets.push(matches[0]);
+    else if (matches.length !== 1) {
+      problems.push(`${name} (${matches.length === 0 ? "nobody by that name" : `${matches.length} people share that name`})`);
+    }
+  }
+  if (problems.length) fail(`Cannot remove ${problems.join("; ")}. Names must match the roster spelling.`);
+  const busy = targets.filter((e) => e.verificationState === "VERIFYING");
+  if (busy.length) fail(`${busy.map((e) => `${e.firstName} ${e.lastName}`).join(", ")} is being verified right now. Wait for the check to finish.`);
+  const ids = targets.map((e) => e.id);
+
+  const result = await db.$transaction(async (tx) => {
+    const audits = await tx.verificationAudit.deleteMany({ where: { employeeId: { in: ids } } });
+    const alerts = await tx.alertAction.deleteMany({ where: { employeeId: { in: ids } } });
+    const removed = await tx.employee.deleteMany({ where: { id: { in: ids } } });
+    return { audits: audits.count, alerts: alerts.count, removed: removed.count };
+  });
+
+  let removedRecordings = 0;
+  for (const id of recordingDirs()) {
+    let employeeId: string | undefined;
+    try {
+      employeeId = (JSON.parse(readFileSync(path.join(runsDir, id, "manifest.json"), "utf8")) as { employeeId?: string })
+        .employeeId;
+    } catch {
+      employeeId = undefined;
+    }
+    if (!employeeId || !ids.includes(employeeId)) continue;
+    rmSync(path.join(runsDir, id), { recursive: true, force: true });
+    removedRecordings++;
+  }
+
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
+  const csvPath = path.join(dataDir, `reimport-${stamp}.csv`);
+  const quote = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+  mkdirSync(dataDir, { recursive: true });
+  writeFileSync(
+    csvPath,
+    ["First name,Last name,Manager", ...targets.map((e) => [e.firstName, e.lastName, e.manager].map(quote).join(","))].join("\n") +
+      "\n",
+  );
+
+  console.log(
+    TAG,
+    `Removed ${result.removed} ${result.removed === 1 ? "person" : "people"} (${targets
+      .map((e) => `${e.firstName} ${e.lastName}`)
+      .join(", ")}); ${result.audits} audits, ${result.alerts} alert actions, ${removedRecordings} recordings.`,
+  );
+  console.log(TAG, `Bring them back during the demo: Add employees -> ${path.relative(root, csvPath)} -> Verify after import.`);
+  if (databaseHolders().length) console.log(TAG, "The dev server is running: the dashboard picks this up on its next poll.");
+}
+
 function list() {
   if (!existsSync(snapshotsDir)) {
     console.log(TAG, `No snapshots yet. Create one with: npm run demo:snapshot -- pristine`);
@@ -227,14 +303,17 @@ function list() {
   }
 }
 
-const { command, name, keep, force } = parseArgs(process.argv.slice(2));
+const { command, name, names, keep, force } = parseArgs(process.argv.slice(2));
 try {
   if (command === "snapshot") await snapshot(name);
   else if (command === "restore") await restore(name, force);
   else if (command === "reset") await reset(keep);
+  else if (command === "remove") await remove(names);
   else if (command === "list") list();
   else {
-    console.log("Usage: demoState.ts snapshot|restore|reset|list [name] [--keep \"First Last\"] [--force]");
+    console.log(
+      'Usage: demoState.ts snapshot|restore|reset|list [name] [--keep "First Last"] [--force]  |  demoState.ts remove "First Last"...',
+    );
     process.exitCode = command === "help" ? 0 : 1;
   }
 } catch (error) {
