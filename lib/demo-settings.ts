@@ -1,0 +1,2 @@
+export const DEFAULT_EMAIL_DELAY_SECONDS = 30;
+export const MAX_EMAIL_DELAY_SECONDS = 300;

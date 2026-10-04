@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import type { ChatMessage, ChatThread } from "@/lib/assistant/types";
+import { sortChatRows } from "@/lib/assistant/rows";
 import { formatDate } from "@/lib/data/format";
 import { useStoreState } from "@/lib/store/credential-store";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ function Message({ message, compact, onRowClick }: { message: ChatMessage; compa
       ) : null}
       {!holdingReply && message.rows && message.rows.length > 0 ? (
         <ul className="flex flex-col divide-y divide-rule rounded-lg border border-rule bg-paper">
-          {message.rows.slice(0, maxRows).map((r) => (
+          {sortChatRows(message.rows).slice(0, maxRows).map((r) => (
             <li key={r.employeeId} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
               <Link href={`/employees/${r.employeeId}`} onClick={onRowClick} className="truncate font-medium text-ink underline-offset-4 hover:underline">
                 {r.name}

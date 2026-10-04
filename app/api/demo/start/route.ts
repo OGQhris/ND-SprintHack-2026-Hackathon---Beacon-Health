@@ -2,15 +2,43 @@ import { z } from "zod";
 import { resetDemoEmployees } from "@/lib/sample-employees";
 import { db } from "@/lib/db";
 import { guardOrigin, safeError } from "@/lib/http";
+import {
+  DEFAULT_EMAIL_DELAY_SECONDS,
+  MAX_EMAIL_DELAY_SECONDS,
+} from "@/lib/demo-settings";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 330;
 const shared = globalThis as unknown as { beaconDemoStarting?: boolean };
+const settingsSchema = z.strictObject({
+  delaySeconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_EMAIL_DELAY_SECONDS)
+    .default(DEFAULT_EMAIL_DELAY_SECONDS),
+});
 
 export async function POST(request: Request) {
-  const sendAfter = Date.now() + 30_000;
+  const startedAt = Date.now();
   const blocked = guardOrigin(request);
   if (blocked) return blocked;
+  const body = await request.text();
+  let settings;
+  try {
+    settings = settingsSchema.safeParse(body ? JSON.parse(body) : {});
+  } catch {
+    return Response.json({ error: "Invalid demo settings." }, { status: 400 });
+  }
+  if (!settings.success) {
+    return Response.json(
+      {
+        error: `Email delay must be a whole number from 0 to ${MAX_EMAIL_DELAY_SECONDS} seconds.`,
+      },
+      { status: 400 },
+    );
+  }
+  const sendAfter = startedAt + settings.data.delaySeconds * 1000;
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const recipient = process.env.RESEND_TEST_EMAIL_TO?.trim();
   if (shared.beaconDemoStarting) {
@@ -41,9 +69,10 @@ export async function POST(request: Request) {
     }
 
     // Keep the delay on the server so navigation doesn't cancel the demo email.
-    await new Promise<void>((resolve) =>
-      setTimeout(resolve, Math.max(0, sendAfter - Date.now())),
-    );
+    const remainingDelay = Math.max(0, sendAfter - Date.now());
+    if (remainingDelay > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, remainingDelay));
+    }
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",

@@ -93,12 +93,20 @@ const registry: RegisteredTool[] = [
             (e) => e.verificationState === "UNVERIFIED",
           ).length,
         },
-        employees: employees.filter(
-          (e) =>
-            e.daysUntilExpiration !== null &&
-            e.daysUntilExpiration >= 0 &&
-            e.daysUntilExpiration <= a.days,
-        ),
+        employees: employees
+          .filter(
+            (e) =>
+              e.daysUntilExpiration !== null &&
+              e.daysUntilExpiration >= 0 &&
+              e.daysUntilExpiration <= a.days,
+          )
+          .sort(
+            (a, b) =>
+              a.daysUntilExpiration! - b.daysUntilExpiration! ||
+              `${a.firstName} ${a.lastName}`.localeCompare(
+                `${b.firstName} ${b.lastName}`,
+              ),
+          ),
       };
     },
   ),
@@ -194,7 +202,11 @@ const registry: RegisteredTool[] = [
     async (a) => {
       const startedAt = new Date().toISOString();
       const employee = await verifyEmployee(a.employeeId);
-      return { ok: employee.verificationState === "VERIFIED", employee, recordingId: latestRecordingFor(a.employeeId, startedAt) };
+      return {
+        ok: employee.verificationState === "VERIFIED",
+        employee,
+        recordingId: latestRecordingFor(a.employeeId, startedAt),
+      };
     },
   ),
   define(

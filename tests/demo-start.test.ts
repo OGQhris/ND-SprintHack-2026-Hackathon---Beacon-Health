@@ -44,15 +44,18 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
     delayObserved = resolve;
   });
   let autoAdvance = false;
+  let expectedDelayMs = 30_000;
+  let observedDelays = 0;
   t.mock.method(
     globalThis,
     "setTimeout",
     (callback: () => void, delay: number, ...args: unknown[]) => {
-      if (delay > 20_000 && delay <= 30_000) {
+      if (delay > expectedDelayMs - 1000 && delay <= expectedDelayMs) {
         assert.ok(
-          delay > 29_000,
-          "send is scheduled about 30 seconds after the click",
+          delay > expectedDelayMs - 1000,
+          "send follows the configured delay from the click",
         );
+        observedDelays++;
         releaseDelay = callback;
         delayObserved();
         if (autoAdvance) queueMicrotask(callback);
@@ -61,10 +64,13 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
       return originalTimeout(callback, delay, ...args);
     },
   );
-  const request = (origin = "http://localhost:3000") =>
+  const request = (origin = "http://localhost:3000", delaySeconds?: number) =>
     new Request("http://localhost:3000/api/demo/start", {
       method: "POST",
       headers: { origin },
+      ...(delaySeconds === undefined
+        ? {}
+        : { body: JSON.stringify({ delaySeconds }) }),
     });
   await db.employee.createMany({
     data: [
@@ -143,6 +149,23 @@ test("Start demo waits 30 seconds before sending and preserves the real roster",
     assert.equal(response.status, 200);
     assert.equal((await response.json()).emailId, "fixture-email");
     assert.equal(calls, 1);
+    for (const invalid of [-1, 301, 1.5]) {
+      assert.equal((await POST(request(undefined, invalid))).status, 400);
+    }
+    assert.equal(calls, 1, "invalid delays never send email");
+    autoAdvance = true;
+    expectedDelayMs = 10_000;
+    assert.equal((await POST(request(undefined, 10))).status, 200);
+    assert.equal(
+      observedDelays,
+      2,
+      "custom delay is used instead of the default",
+    );
+    const beforeImmediate = observedDelays;
+    assert.equal((await POST(request(undefined, 0))).status, 200);
+    assert.equal(observedDelays, beforeImmediate, "zero skips the delay");
+    assert.equal(calls, 3);
+    expectedDelayMs = 30_000;
     const source = await db.employee.findUniqueOrThrow({
       where: { id: "jenna" },
     });
