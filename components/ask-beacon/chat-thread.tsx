@@ -122,12 +122,13 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
     followBottom();
   }, [thread?.id, followBottom]);
 
-  // Always keep the newest text visible, starting with the first message.
+  // Pin the latest activity while the assistant works; idle history scrolls freely.
   useLayoutEffect(() => {
-    followBottom();
-  }, [count, lastLength, activityProgress, followBottom]);
+    if (busy) followBottom();
+  }, [busy, count, lastLength, activityProgress, followBottom]);
   // Buffered answers and the expanding preview change height without new stream text.
   useEffect(() => {
+    if (!busy) return;
     const el = scroller.current;
     const content = el?.firstElementChild;
     if (!el || !content) return;
@@ -135,7 +136,7 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
     observer.observe(content);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [followBottom]);
+  }, [busy, followBottom]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -149,7 +150,7 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
       <div
         ref={scroller}
         data-chat-scroll
-        onScroll={followBottom}
+        onScroll={busy ? followBottom : undefined}
         className={cn("min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]", compact ? "px-4 py-3" : "px-1 py-4")}
       >
         <div className={cn("flex flex-col", compact ? "gap-3" : "gap-5")}>
