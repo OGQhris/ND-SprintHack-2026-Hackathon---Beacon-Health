@@ -17,6 +17,7 @@
     "demo:snapshot": "node --import tsx scripts/demoState.ts snapshot",
     "demo:restore": "node --import tsx scripts/demoState.ts restore",
     "demo:reset": "node --import tsx scripts/demoState.ts reset",
+    "demo:seed": "node --import tsx scripts/seedSampleEmployees.ts",
     "demo:list": "node --import tsx scripts/demoState.ts list",
     "demo:remove": "node --import tsx scripts/demoState.ts remove",
     "postinstall": "prisma generate",
@@ -28,6 +29,7 @@
     "test:provider": "node --import tsx scripts/testProvider.mjs",
     "test:viewer": "node scripts/testVerificationViewer.mjs",
     "test:workspace": "node scripts/testWorkspace.mjs",
+    "test:agent-chat": "node scripts/checkAgentChat.mjs",
     "test:scraper": "node --import tsx scripts/testScraperFallback.mjs"
   },
   "dependencies": {

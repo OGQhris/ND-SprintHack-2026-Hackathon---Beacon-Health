@@ -32,7 +32,7 @@ export const REASON_LABEL: Record<ReviewReason | FailureReason, string> = {
 /**
  * The single status rule. Everything that shows a status calls this.
  * An unverified credential with no expiration date needs review; one that carries a date
- * (only possible with the demo clock, which seeds dates for the whole roster) is judged by that date,
+ * (including a fictional sample employee) is judged by that date,
  * exactly like the previous dashboard did. The verification state itself stays visible elsewhere.
  */
 export function deriveStatus(credential: Credential, today: string): DerivedStatus {

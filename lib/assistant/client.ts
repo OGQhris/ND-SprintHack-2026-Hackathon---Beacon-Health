@@ -1,5 +1,6 @@
 import type { ChatEvent } from "@/lib/ai/responseLoop";
 import type { AskResponse, ChatActivity, ChatRole, ChatRow } from "@/lib/assistant/types";
+import { finishAssistantVerification, trackAssistantVerification } from "@/lib/store/assistant-verifications";
 
 /**
  * Browser side of POST /api/ask. The server answers with JSON (rules mode, no OPENAI_API_KEY)
@@ -77,6 +78,9 @@ function applyEvent(event: ChatEvent, state: StreamState, input: AskBeaconInput)
       input.onDelta(state.text);
       return;
     case "tool_call_start":
+      if (event.name === "verify_employee_credential" && event.employeeId && event.startedAt) {
+        trackAssistantVerification(`${input.threadId}:${event.callId}`, event.employeeId, event.startedAt);
+      }
       state.activities = [
         ...state.activities,
         {
@@ -84,16 +88,20 @@ function applyEvent(event: ChatEvent, state: StreamState, input: AskBeaconInput)
           label: event.label ?? event.name ?? "Checking credential data",
           done: false,
           ok: true,
+          name: event.name,
+          employeeId: event.employeeId,
+          startedAt: event.startedAt,
         },
       ];
       input.onActivity(state.activities);
       return;
     case "tool_call_complete": {
+      if (event.name === "verify_employee_credential") finishAssistantVerification(`${input.threadId}:${event.callId}`);
       const ok = event.ok !== false;
       const index = event.callId
         ? state.activities.findIndex((a) => a.id === event.callId)
         : state.activities.findIndex((a) => !a.done);
-      state.activities = state.activities.map((a, i) => (i === index ? { ...a, done: true, ok } : a));
+      state.activities = state.activities.map((a, i) => (i === index ? { ...a, done: true, ok, recordingId: event.recordingId } : a));
       input.onActivity(state.activities);
       input.onToolComplete?.({ name: event.name ?? "", ok });
       return;

@@ -15,6 +15,7 @@ export type EmployeeRecord = Omit<
   lastAttemptAt: string | null;
   sourceExpirationDate: string | null;
   demoExpiration: boolean;
+  isSample?: boolean;
   expirationCategory: ExpirationCategory;
   daysUntilExpiration: number | null;
 };
@@ -47,13 +48,6 @@ export type BatchProgress = {
   stopRequested?: boolean;
 };
 
-/** The demo clock: simulated expirations seeded relative to seedDate, evaluated as of today. */
-export type DemoSettings = {
-  enabled: boolean;
-  today: string;
-  seedDate: string;
-};
-
 export type DashboardData = {
   employees: EmployeeRecord[];
   summary: Summary;
@@ -61,7 +55,6 @@ export type DashboardData = {
   today: string;
   aiConfigured: boolean;
   managers: string[];
-  demo: DemoSettings;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -308,7 +301,6 @@ export type CredentialSeed = {
 export type WorkspacePayload = {
   seed: CredentialSeed;
   batch: BatchProgress;
-  demo: DemoSettings;
   aiConfigured: boolean;
   /** ISO timestamp the server produced this snapshot. */
   generatedAt: string;
@@ -319,7 +311,6 @@ export type StoreState = CredentialSeed & {
   reminders: Record<string, string>;
   /** Server-side roster verification progress (Verify selected / Verify all / assistant-triggered). */
   batch: BatchProgress;
-  demo: DemoSettings;
   aiConfigured: boolean;
   /** When the store last applied a server snapshot (ISO), or null before the first poll. */
   lastSyncedAt: string | null;

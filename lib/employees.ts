@@ -1,4 +1,4 @@
-import { seededExpiration } from "./demo";
+import { SAMPLE_SHEET } from "./sample-employees";
 import type { Employee } from "@prisma/client";
 import { db } from "./db";
 import {
@@ -11,12 +11,7 @@ export function serializeEmployee(
   e: Employee,
   today = todayDate(),
 ): EmployeeRecord {
-  // The demo clock simulates dates for the workbook roster only. People added through the CSV import stay
-  // "Not yet verified" until their real check runs, so a live import never shows a made-up expiration.
-  const demoDate = e.sourceSheet.startsWith("csv:")
-    ? null
-    : seededExpiration(e.sourceRow);
-  const expiration = demoDate || e.expirationDate;
+  const expiration = e.expirationDate;
   return {
     ...e,
     createdAt: e.createdAt.toISOString(),
@@ -25,7 +20,8 @@ export function serializeEmployee(
     lastAttemptAt: e.lastAttemptAt?.toISOString() ?? null,
     expirationDate: expiration,
     sourceExpirationDate: e.expirationDate,
-    demoExpiration: !!demoDate,
+    demoExpiration: false,
+    isSample: e.sourceSheet === SAMPLE_SHEET,
     expirationCategory: expirationCategory(expiration, today),
     daysUntilExpiration: daysUntilExpiration(expiration, today),
   };

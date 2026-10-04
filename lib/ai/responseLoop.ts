@@ -24,6 +24,9 @@ export type ChatEvent = {
   label?: string;
   callId?: string;
   ok?: boolean;
+  employeeId?: string;
+  startedAt?: string;
+  recordingId?: string;
   message?: string;
   /** "answer" frames: employee chips and the deep link to show under the finished reply. */
   rows?: ChatRow[];
@@ -121,11 +124,20 @@ export async function runResponseLoop({
     // Preserve every output item, including reasoning items, before providing corresponding outputs.
     input.push(...(response.output as ResponseInputItem[]));
     for (const call of calls) {
+      let employeeId: string | undefined;
+      if (call.name === "verify_employee_credential") {
+        try {
+          const args = JSON.parse(call.arguments);
+          if (typeof args.employeeId === "string") employeeId = args.employeeId;
+        } catch { /* Tool validation reports malformed arguments. */ }
+      }
       emit({
         type: "tool_call_start",
         name: call.name,
         label: toolLabel(call.name),
         callId: call.call_id,
+        employeeId,
+        startedAt: new Date().toISOString(),
       });
       const result = await executeTool(call.name, call.arguments, {
         latestUserMessage,
@@ -146,6 +158,7 @@ export async function runResponseLoop({
         label: toolLabel(call.name),
         callId: call.call_id,
         ok: !failed,
+        recordingId: typeof result === "object" && result !== null && "recordingId" in result && typeof result.recordingId === "string" ? result.recordingId : undefined,
       });
       input.push({
         type: "function_call_output",

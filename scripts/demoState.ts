@@ -3,12 +3,13 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { db } from "../lib/db";
+import { SAMPLE_SHEET } from "../lib/sample-employees";
 
 /**
  * Save, restore and reset the demo state so you can exercise every verification path and then put the
  * app back the way the judges should first see it.
  *
- *   npm run demo:snapshot -- <name>              consistent copy of the database, recordings and demo clock
+ *   npm run demo:snapshot -- <name>              consistent copy of the database and recordings
  *   npm run demo:restore  -- <name>              put that copy back (stop the dev server first)
  *   npm run demo:reset    -- [--keep "First Last"]...   everyone back to "Not yet verified", except the people kept
  *   npm run demo:remove   -- "First Last"...      take people off the roster and write them to data/reimport-*.csv,
@@ -16,7 +17,8 @@ import { db } from "../lib/db";
  *   npm run demo:list                            what snapshots exist
  *
  * State covered: prisma/beacon.db (employees, audits, alert actions), data/verification-runs (browser
- * recordings), data/demo-settings.json (demo clock). Ask Beacon threads live in the browser; delete them
+ * recordings). The four fictional Sample employees are left alone by reset (Start demo re-seeds them).
+ * Ask Beacon threads live in the browser; delete them
  * from the /ask page if a clean chat matters for the demo.
  */
 
@@ -26,6 +28,7 @@ const dataDir = path.resolve(root, process.env.DEMO_DATA_DIR || "data");
 const dbUrl = process.env.DATABASE_URL || "file:./beacon.db";
 const dbPath = path.resolve(root, "prisma", dbUrl.replace(/^file:/, ""));
 const runsDir = path.join(dataDir, "verification-runs");
+/** Legacy demo-clock settings file; removed by reset so it cannot confuse anyone. */
 const demoFile = path.join(dataDir, "demo-settings.json");
 const snapshotsDir = path.resolve(root, process.env.DEMO_SNAPSHOT_DIR || path.join(dataDir, "snapshots"));
 
@@ -172,7 +175,7 @@ async function reset(keep: string[]) {
     const audits = await tx.verificationAudit.deleteMany({ where: { employeeId: { notIn: keptIds } } });
     const alerts = await tx.alertAction.deleteMany();
     const reset = await tx.employee.updateMany({
-      where: { id: { notIn: keptIds } },
+      where: { id: { notIn: keptIds }, sourceSheet: { not: SAMPLE_SHEET } },
       data: {
         licenseNumber: null,
         credentialStatus: null,
@@ -210,11 +213,11 @@ async function reset(keep: string[]) {
     `Reset ${result.reset} employees to Not yet verified` +
       (kept.length ? ` (kept ${kept.map((e) => `${e.firstName} ${e.lastName}`).join(", ")})` : "") +
       `; removed ${result.audits} audits, ${result.alerts} alert actions, ${removedRecordings} recordings` +
-      (hadDemo ? "; demo clock turned off" : "") +
+      (hadDemo ? "; removed the old demo clock file" : "") +
       ".",
   );
   if (databaseHolders().length) {
-    console.log(TAG, "The dev server is running: the dashboard picks this up on its next poll. Restart it if the demo clock was on.");
+    console.log(TAG, "The dev server is running: the dashboard picks this up on its next poll.");
   }
 }
 

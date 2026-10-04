@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { ArrowRightIcon, SendHorizontalIcon, SquareIcon } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ActivityList } from "@/components/ask-beacon/message-activities";
+import { VerificationPreview } from "@/components/ask-beacon/verification-preview";
 import { AssistantMarkdown } from "@/components/ask-beacon/message-markdown";
 import { SUGGESTED_PROMPTS } from "@/components/ask-beacon/use-ask-beacon";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -26,9 +27,13 @@ type Props = {
 };
 
 const NO_KEY_NOTE = "Answers come from built-in rules until OPENAI_API_KEY is set in .env.local and the server is restarted.";
-const LIVE_NOTE = "Answers come from your credential data. Asking Beacon to verify someone runs a live check against the Michigan license lookup.";
 
 function Message({ message, compact, onRowClick }: { message: ChatMessage; compact?: boolean; onRowClick?: () => void }) {
+  const state = useStoreState();
+  const [finishedPreviews, setFinishedPreviews] = useState<string[]>([]);
+  const finishPreview = useCallback((id: string) => {
+    setFinishedPreviews((previous) => previous.includes(id) ? previous : [...previous, id]);
+  }, []);
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -39,25 +44,32 @@ function Message({ message, compact, onRowClick }: { message: ChatMessage; compa
     );
   }
   const maxRows = compact ? 5 : 10;
+  const verificationActivities = message.activities?.filter((a) => a.name === "verify_employee_credential" && a.employeeId) ?? [];
+  const holdingReply = !message.error && verificationActivities.some((a) => !finishedPreviews.includes(a.id));
   const hasText = message.text.trim().length > 0;
   return (
     <div className="flex flex-col gap-2">
-      {message.pending ? (
+      {message.pending || holdingReply ? (
         <p className="flex items-center gap-2 text-sm text-ink-soft">
           <Spinner className="text-seal" />
-          {message.activity ?? "Checking credential data"}
+          {holdingReply ? "Watching the verification steps" : message.activity ?? "Checking credential data"}
         </p>
-      ) : message.activities?.length ? (
-        <ActivityList activities={message.activities} />
       ) : null}
-      {hasText ? (
+      {message.activities?.length ? <ActivityList activities={message.activities} /> : null}
+      {verificationActivities.map((activity) => {
+        const employee = state.employees.find((e) => e.id === activity.employeeId);
+        return <VerificationPreview key={activity.id} activity={activity} onComplete={finishPreview} employeeName={employee ? `${employee.firstName} ${employee.lastName}` : "Credential check"} />;
+      })}
+      {hasText && !holdingReply ? (
         message.error ? (
           <p className={cn("whitespace-pre-wrap text-status-failed-fg", compact ? "text-sm" : "text-[15px] leading-relaxed")}>{message.text}</p>
         ) : (
-          <AssistantMarkdown text={message.text} compact={compact} />
+          <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-300">
+            <AssistantMarkdown text={message.text} compact={compact} />
+          </div>
         )
       ) : null}
-      {message.rows && message.rows.length > 0 ? (
+      {!holdingReply && message.rows && message.rows.length > 0 ? (
         <ul className="flex flex-col divide-y divide-rule rounded-lg border border-rule bg-paper">
           {message.rows.slice(0, maxRows).map((r) => (
             <li key={r.employeeId} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
@@ -73,21 +85,16 @@ function Message({ message, compact, onRowClick }: { message: ChatMessage; compa
           {message.rows.length > maxRows ? <li className="px-3 py-1.5 text-xs text-ink-faint">and {message.rows.length - maxRows} more</li> : null}
         </ul>
       ) : null}
-      <div className="flex items-center gap-3">
-        {message.href && message.rows && message.rows.length > 1 ? (
+      {!holdingReply && message.href && message.rows && message.rows.length > 1 ? (
+        <div className="flex items-center gap-3">
           <Button asChild variant="link" size="sm" className="h-auto px-0">
             <Link href={message.href} onClick={onRowClick}>
               Show in the app
               <ArrowRightIcon data-icon="inline-end" />
             </Link>
           </Button>
-        ) : null}
-        {!message.pending && !message.error && message.mode ? (
-          <span className="text-[11px] text-ink-faint">
-            {message.mode === "llm" ? `${message.model ?? "Model"} on your credential data` : "Rule-based answer from your credential data"}
-          </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -97,15 +104,38 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
   const { aiConfigured } = useStoreState();
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
+  const followBottom = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    if (!compact && document.scrollingElement) {
+      document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight;
+    }
+  }, [compact]);
   const count = thread?.messages.length ?? 0;
   const lastLength = thread?.messages.at(-1)?.text.length ?? 0;
+  const activityProgress = thread?.messages.at(-1)?.activities?.map((a) => `${a.id}:${a.done}`).join(",");
   const busy = thread?.messages.some((m) => m.pending) ?? false;
 
-  // Follow the conversation as messages arrive and as a reply streams in.
+  // Open each conversation at its latest message.
+  useLayoutEffect(() => {
+    followBottom();
+  }, [thread?.id, followBottom]);
+
+  // Always keep the newest text visible, starting with the first message.
+  useLayoutEffect(() => {
+    followBottom();
+  }, [count, lastLength, activityProgress, followBottom]);
+  // Buffered answers and the expanding preview change height without new stream text.
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [count, lastLength]);
+    const content = el?.firstElementChild;
+    if (!el || !content) return;
+    const observer = new ResizeObserver(followBottom);
+    observer.observe(content);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [followBottom]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -116,7 +146,12 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div ref={scroller} className={cn("min-h-0 flex-1 overflow-y-auto", compact ? "px-4 py-3" : "px-1 py-4")}>
+      <div
+        ref={scroller}
+        data-chat-scroll
+        onScroll={followBottom}
+        className={cn("min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]", compact ? "px-4 py-3" : "px-1 py-4")}
+      >
         <div className={cn("flex flex-col", compact ? "gap-3" : "gap-5")}>
           {!thread || thread.messages.length === 0 ? (
             <div className="flex flex-col gap-2">
@@ -152,8 +187,6 @@ export function ChatThreadView({ thread, onSend, onStop, compact, onRowClick, cl
         </InputGroup>
         {!aiConfigured ? (
           <p className="mt-2 text-[11px] text-ink-faint">{NO_KEY_NOTE}</p>
-        ) : !compact ? (
-          <p className="mt-2 text-[11px] text-ink-faint">{LIVE_NOTE}</p>
         ) : null}
       </form>
     </div>

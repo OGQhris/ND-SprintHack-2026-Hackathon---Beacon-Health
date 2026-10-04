@@ -44,6 +44,8 @@ try {
       throw new Error(
         `Current-credential question did not use a database tool: ${message}`,
       );
+    if (message === "Verify Kathryn Cell." && !tools.includes("verify_employee_credential"))
+      throw new Error("The verification request must invoke the live verification tool, not just read an existing VERIFIED record.");
     if (!deltas) throw new Error("No streamed text was received.");
     history.push({ role: "assistant", content });
     if (message === "Verify Kathryn Cell.") {

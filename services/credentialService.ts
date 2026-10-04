@@ -113,6 +113,7 @@ async function performVerification(
 ) {
   const employee = await db.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found.");
+  if (employee.sourceSheet === "Sample employees") return serializeEmployee(employee);
   console.log(
     "[Credential Verification] Starting",
     employee.firstName,

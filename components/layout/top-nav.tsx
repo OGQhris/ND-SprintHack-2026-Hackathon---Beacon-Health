@@ -5,11 +5,10 @@ import { usePathname } from "next/navigation";
 import { BellIcon, MessageSquareTextIcon } from "lucide-react";
 import { useMemo } from "react";
 import { useAskBeacon } from "@/components/ask-beacon/use-ask-beacon";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ProfileMenu } from "@/components/layout/profile-menu";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DemoClock, DemoClockChip } from "@/components/workspace/demo-clock";
 import { getOpenAlertCount } from "@/lib/data/selectors";
 import { useStoreState } from "@/lib/store/credential-store";
 
@@ -33,7 +32,6 @@ export function TopNav() {
     <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-rule bg-paper px-4 md:gap-4 md:px-6">
       <SidebarTrigger className="md:hidden" />
       <h2 className="text-sm font-medium text-ink">{title}</h2>
-      <DemoClockChip />
 
       <Button variant="outline" size="sm" className="ml-auto hidden bg-paper sm:inline-flex" onClick={() => setDockOpen(!dockOpen)} aria-pressed={dockOpen}>
         <MessageSquareTextIcon data-icon="inline-start" />
@@ -45,7 +43,6 @@ export function TopNav() {
         </Link>
       </Button>
 
-      <DemoClock />
 
       <Tooltip>
         <TooltipTrigger asChild>
@@ -69,9 +66,7 @@ export function TopNav() {
         <TooltipContent>{openAlerts === 0 ? "No open alerts" : `${openAlerts} open alerts`}</TooltipContent>
       </Tooltip>
 
-      <Avatar size="default">
-        <AvatarFallback className="bg-seal-tint text-xs font-semibold text-seal-strong">BM</AvatarFallback>
-      </Avatar>
+      <ProfileMenu />
     </div>
   );
 }

@@ -22,7 +22,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# /app/data is the persistent volume: the SQLite database, browser recordings and the demo clock file.
+# /app/data is the persistent volume: the SQLite database and the browser recordings.
 # deploy/seed/beacon.db (copied from a snapshot by deploy/prepare-seed.sh, never committed) seeds an empty volume.
 RUN mkdir -p /app/data /app/seed && \
     if [ -f deploy/seed/beacon.db ]; then cp deploy/seed/beacon.db /app/seed/beacon.db; fi && \

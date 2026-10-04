@@ -12,7 +12,8 @@ primary_region = "ord"
   DATABASE_URL = "file:/app/data/beacon.db"
   PLAYWRIGHT_HEADLESS = "true"
   APP_TIMEZONE = "America/Indiana/Indianapolis"
-  # OPENAI_API_KEY and OPENAI_MODEL are secrets: fly secrets set OPENAI_API_KEY=... OPENAI_MODEL=gpt-5.4-mini
+  # Secrets, never here: fly secrets set OPENAI_API_KEY=... OPENAI_MODEL=gpt-5.4-mini RESEND_API_KEY=... RESEND_TEST_EMAIL_TO=you@example.com
+  # (RESEND_* power the "Start demo" notification in the BM menu; without them the sample employees still seed.)
 
 # Roster checks run inside the web process (one Playwright browser at a time). Letting Fly stop the machine
 # when no browser tab is connected would kill a check mid-batch, so the single machine stays up.

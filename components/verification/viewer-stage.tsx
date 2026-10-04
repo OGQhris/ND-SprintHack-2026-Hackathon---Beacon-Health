@@ -17,9 +17,12 @@ type Props = {
   onToggle: () => void;
   onReplay: () => void;
   onScrub: (index: number) => void;
+  compact?: boolean;
+  hideControls?: boolean;
+  onExpand?: () => void;
 };
 
-const MOVE = "motion-safe:transition-all motion-safe:duration-700 motion-safe:ease-out";
+const MOVE = "motion-safe:transition-[left,top,width,height,opacity] motion-safe:duration-650 motion-safe:ease-[cubic-bezier(0.45,0,0.15,1)]";
 
 function pct(fraction: number): string {
   return `${fraction * 100}%`;
@@ -51,13 +54,14 @@ function Placeholder({ run, waiting }: { run: VerificationRun | null; waiting: b
   );
 }
 
-export function ViewerStage({ run, step, waiting, index, count, playing, atEnd, onToggle, onReplay, onScrub }: Props) {
+export function ViewerStage({ run, step, waiting, index, count, playing, atEnd, onToggle, onReplay, onScrub, compact, hideControls, onExpand }: Props) {
   const target = step?.target;
-  const cursorX = target?.x ?? 0.5;
-  const cursorY = target?.y ?? 0.5;
+  const cursorTarget = target ?? run?.steps.slice(0, (step?.index ?? 0) + 1).findLast((previous) => previous.target)?.target;
+  const cursorX = cursorTarget?.x ?? 0.5;
+  const cursorY = cursorTarget?.y ?? 0.5;
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 bg-folder-inset p-4 md:p-5">
+    <div className={cn("flex min-w-0 flex-col gap-3 bg-folder-inset", compact ? "p-2" : "p-4 md:p-5")}>
       <div className="float-shadow overflow-hidden rounded-lg border border-rule bg-paper">
         <div className="flex items-center gap-3 border-b border-rule px-3 py-2 text-[11px] text-ink-soft">
           <span aria-hidden className="flex gap-1">
@@ -73,25 +77,24 @@ export function ViewerStage({ run, step, waiting, index, count, playing, atEnd, 
         </div>
 
         <div className="relative isolate aspect-[1.44] w-full overflow-hidden bg-paper">
+          {onExpand ? <button type="button" onClick={onExpand} aria-label="Enlarge verification preview" className="absolute inset-0 z-50 cursor-zoom-in rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-seal" /> : null}
           {!step ? <Placeholder run={run} waiting={waiting} /> : null}
           {step?.frameUrl ? <ViewerFrame src={step.frameUrl} label={step.label} /> : null}
 
-          {target ? (
-            <div
+          <div
               aria-hidden
-              className={cn("pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-sm border-2 border-seal/70 bg-seal/10", MOVE)}
+              className={cn("pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-sm border-2 border-seal/70 bg-seal/10", MOVE, target ? "opacity-100" : "opacity-0")}
               style={{
-                left: pct(target.x),
-                top: pct(target.y),
-                width: pct(Math.max(target.width, 0.02)),
-                height: pct(Math.max(target.height, 0.02)),
+                left: pct(cursorX),
+                top: pct(cursorY),
+                width: pct(Math.max(cursorTarget?.width ?? 0, 0.02)),
+                height: pct(Math.max(cursorTarget?.height ?? 0, 0.02)),
               }}
             />
-          ) : null}
 
           <div
             aria-hidden
-            className={cn("pointer-events-none absolute z-30", MOVE, target ? "opacity-100" : "opacity-0")}
+            className={cn("pointer-events-none absolute z-30", MOVE, cursorTarget ? "opacity-100" : "opacity-0")}
             style={{ left: pct(cursorX), top: pct(cursorY) }}
           >
             <MousePointer2Icon className="size-6 fill-seal stroke-white drop-shadow-sm md:size-7" strokeWidth={1.5} />
@@ -115,7 +118,7 @@ export function ViewerStage({ run, step, waiting, index, count, playing, atEnd, 
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {!hideControls ? <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -142,7 +145,7 @@ export function ViewerStage({ run, step, waiting, index, count, playing, atEnd, 
         <span className="numeric w-12 text-right text-[11px] text-ink-faint">
           {count ? index + 1 : 0} / {count}
         </span>
-      </div>
+      </div> : null}
     </div>
   );
 }

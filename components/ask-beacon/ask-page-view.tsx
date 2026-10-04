@@ -32,7 +32,7 @@ export function AskPageView({ threadId }: { threadId?: string }) {
 
   if (open) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3">
+      <div className="mx-auto flex h-[calc(100dvh-7rem)] min-h-96 w-full max-w-3xl flex-none flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <Button asChild variant="ghost" size="sm" className="-ml-2 text-ink-soft">
             <Link href="/ask">
@@ -54,7 +54,7 @@ export function AskPageView({ threadId }: { threadId?: string }) {
             Delete
           </Button>
         </div>
-        <div className="flex min-h-[60vh] flex-1 flex-col rounded-lg border border-rule bg-paper px-4">
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-rule bg-paper px-4">
           <ChatThreadView thread={open} onSend={(q) => void send(q, open.id)} onStop={stop} />
         </div>
       </div>
@@ -126,4 +126,3 @@ export function AskPageView({ threadId }: { threadId?: string }) {
     </div>
   );
 }
-

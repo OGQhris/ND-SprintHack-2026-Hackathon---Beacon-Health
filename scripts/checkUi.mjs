@@ -5,7 +5,6 @@ import {
   createHarness,
   createRunner,
   getJson,
-  postJson,
   printSummary,
   shot,
   waitForCount,
@@ -39,12 +38,11 @@ const kpi = (label) => page.locator(`section[aria-label="${label}"]`);
 try {
   await step("workspace payload", async () => {
     workspace = await getJson(page, "/api/workspace");
-    const { seed, batch, demo, aiConfigured, generatedAt } = workspace;
-    assert.equal(seed.employees.length, ROSTER);
-    assert.equal(seed.credentials.length, ROSTER);
+    const { seed, batch, aiConfigured, generatedAt } = workspace;
+    assert.equal(seed.employees.length, ROSTER + 4);
+    assert.equal(seed.credentials.length, ROSTER + 4);
     for (const credential of seed.credentials) assert.equal(credential.id, `cred-${credential.employeeId}`);
     assert.equal(typeof batch?.running, "boolean", "batch present");
-    assert.equal(typeof demo?.enabled, "boolean", "demo present");
     assert.equal(typeof aiConfigured, "boolean", "aiConfigured present");
     assert.match(generatedAt, /^\d{4}-\d{2}-\d{2}T/, "generatedAt is an ISO timestamp");
     assert.match(seed.today, /^\d{4}-\d{2}-\d{2}$/, "today is YYYY-MM-DD");
@@ -130,29 +128,12 @@ try {
     assert.equal(new URL(page.url()).pathname, "/dashboard");
   });
 
-  await step("demo clock round trip", async () => {
-    const original = (await getJson(page, "/api/workspace")).demo;
-    let restored;
-    try {
-      if (original.enabled) assert.equal((await postJson(page, "/api/demo", { ...original, enabled: false })).status, 200);
-      await open("/dashboard");
-      await heading("Credential Monitoring").waitFor();
-      await page.getByRole("button", { name: "Demo clock", exact: true }).click();
-      await page.getByRole("menuitem", { name: "Enable demo data" }).click();
-      await page.getByText("Demo clock on", { exact: true }).waitFor({ timeout: 20_000 });
-      await page.locator("tbody").getByText("Demo", { exact: true }).first().waitFor({ timeout: 20_000 });
-      await page.waitForFunction(
-        (label) => Number(document.querySelector(`section[aria-label="${label}"] p`)?.textContent) > 0,
-        KPI_LABELS[1],
-        { timeout: 20_000 },
-      );
-      assert.equal((await getJson(page, "/api/workspace")).demo.enabled, true);
-      await shot(page, "demo-clock.png", true);
-    } finally {
-      restored = await postJson(page, "/api/demo", original);
-    }
-    assert.equal(restored.status, 200, `restoring the demo settings answered ${restored.status}`);
-    return `restored ${JSON.stringify(original)}`;
+  await step("sample employee records", async () => {
+    const workspace = await getJson(page, "/api/workspace");
+    assert.equal(workspace.seed.sampleCount, 4);
+    assert.equal(workspace.seed.employees.filter((e) => e.isSample).length, 4);
+    await open("/dashboard");
+    assert.equal(await page.getByRole("button", { name: "Demo clock", exact: true }).count(), 0);
   });
 
   await step("phone layout", async () => {
